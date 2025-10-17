@@ -1,0 +1,913 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>戰情室 - Dashboard</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.css" />
+    <script src="~/js/vue.global.js"></script>
+    <script src="~/js/echarts.min.js"></script>
+    <script src="~/js/sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang TC', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f3ed;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #app {
+            min-height: 100vh;
+        }
+
+        /* Navbar Styling */
+        .navbar-custom {
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #8b7355;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            border: 2px solid #e0e7ff;
+            border-radius: 10px;
+            padding: 0.5rem 1rem;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Main Container */
+        .dashboard-container {
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-grid.top-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .card-grid.bottom-row {
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+        }
+
+        /* Card Styling */
+        .dashboard-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 12px rgba(139, 115, 85, 0.08);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease forwards;
+            opacity: 0;
+            cursor: move;
+            border: 1px solid rgba(139, 115, 85, 0.1);
+        }
+
+        .dashboard-card:hover {
+            box-shadow: 0 4px 20px rgba(139, 115, 85, 0.15);
+        }
+
+        .dashboard-card.sortable-ghost {
+            opacity: 0.4;
+        }
+
+        .dashboard-card.sortable-drag {
+            opacity: 0.8;
+            transform: rotate(3deg);
+        }
+
+        @@keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dashboard-card:nth-child(1) { animation-delay: 0.1s; }
+        .dashboard-card:nth-child(2) { animation-delay: 0.2s; }
+        .dashboard-card:nth-child(3) { animation-delay: 0.3s; }
+        .dashboard-card:nth-child(4) { animation-delay: 0.4s; }
+        .dashboard-card:nth-child(5) { animation-delay: 0.5s; }
+        .dashboard-card:nth-child(6) { animation-delay: 0.6s; }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f4ff;
+        }
+
+        .card-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            margin-right: 1rem;
+            background: #8b7355;
+            color: white;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        /* Stats Table */
+        .stats-table {
+            width: 100%;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .stats-row:last-child {
+            border-bottom: none;
+        }
+
+        .stats-label {
+            font-size: 0.95rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .stats-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stats-value.large {
+            font-size: 1.8rem;
+            color: #8b7355;
+        }
+
+        .stats-value.success {
+            color: #10b981;
+        }
+
+        .stats-value.danger {
+            color: #ef4444;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            width: 100%;
+            height: 350px;
+            margin-top: 1rem;
+        }
+
+        .chart-container.small {
+            height: 250px;
+        }
+
+        /* Product Selector */
+        .product-selector {
+            margin-bottom: 1rem;
+        }
+
+        .product-selector select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e7ff;
+            border-radius: 10px;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .product-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Customer Info Grid */
+        .customer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .customer-section h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        /* Carbon Table */
+        .carbon-table {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .carbon-table th,
+        .carbon-table td {
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .carbon-table th {
+            font-weight: 600;
+            color: #475569;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .carbon-table td {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .carbon-table .label-col {
+            text-align: left;
+            color: #64748b;
+        }
+
+        /* Responsive */
+        @@media (max-width: 768px) {
+            .navbar-custom {
+                padding: 0.75rem 1rem;
+            }
+
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+
+            .dashboard-container {
+                padding: 1rem;
+            }
+
+            .card-grid.top-row,
+            .card-grid.bottom-row {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .dashboard-card {
+                padding: 1rem;
+            }
+
+            .card-header {
+                margin-bottom: 1rem;
+                padding-bottom: 0.75rem;
+            }
+
+            .card-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+
+            .card-title {
+                font-size: 1.1rem;
+            }
+
+            .stats-value.large {
+                font-size: 1.5rem;
+            }
+
+            .customer-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+            }
+
+            .filter-group select,
+            .filter-group input {
+                width: 100%;
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+
+            .chart-container {
+                height: 280px;
+            }
+
+            .chart-container.small {
+                height: 200px;
+            }
+
+            .carbon-table th,
+            .carbon-table td {
+                padding: 0.5rem;
+                font-size: 0.9rem;
+            }
+        }
+
+        @@media (max-width: 480px) {
+            .navbar-custom {
+                padding: 0.5rem;
+            }
+
+            .navbar-brand {
+                font-size: 1rem;
+            }
+
+            .dashboard-container {
+                padding: 0.75rem;
+            }
+
+            .dashboard-card {
+                padding: 0.75rem;
+                border-radius: 12px;
+            }
+
+            .card-title {
+                font-size: 1rem;
+            }
+
+            .stats-label,
+            .stats-value {
+                font-size: 0.85rem;
+            }
+
+            .stats-value.large {
+                font-size: 1.3rem;
+            }
+
+            .chart-container {
+                height: 240px;
+            }
+
+            .chart-container.small {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar navbar-custom">
+            <div class="container-fluid">
+                <span class="navbar-brand">
+                    <i class="bi bi-speedometer2"></i> 戰情室
+                </span>
+                <div class="filter-group">
+                    <select v-model="filters.interval" @@change="updateDashboard">
+                        <option value="day">日</option>
+                        <option value="week">週</option>
+                        <option value="month">月</option>
+                    </select>
+                    <input type="date" v-model="filters.beginDate" @@change="updateDashboard" />
+                    <input type="date" v-model="filters.endDate" @@change="updateDashboard" />
+                    <select v-model="filters.group" @@change="updateDashboard">
+                        <option value="area">區域</option>
+                        <option value="brand">品牌</option>
+                        <option value="spot">店型</option>
+                        <option value="custom">自選</option>
+                    </select>
+                </div>
+            </div>
+        </nav>
+
+        <div class="dashboard-container">
+            <!-- Top Row Cards -->
+            <div class="card-grid top-row">
+                <!-- Revenue Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-cash-coin"></i>
+                        </div>
+                        <h2 class="card-title">營業額</h2>
+                    </div>
+                    <div class="stats-table">
+                        <div class="stats-row">
+                            <span class="stats-label">目標</span>
+                            <span class="stats-value">{{ formatNumber(data.targetRevenue) }}</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">實際</span>
+                            <span class="stats-value large">{{ formatNumber(data.realRevenue) }}</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">達成率</span>
+                            <span class="stats-value large" :class="data.revenueAchieved ? 'success' : 'danger'">
+                                {{ data.revenueRate }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <h2 class="card-title">來客數</h2>
+                    </div>
+                    <div class="stats-table">
+                        <div class="stats-row">
+                            <span class="stats-label">來客數</span>
+                            <span class="stats-value">{{ formatNumber(data.customers) }}</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">消費人次</span>
+                            <span class="stats-value">{{ formatNumber(data.consumers) }}</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">消費人次比率</span>
+                            <span class="stats-value large">{{ data.consumerRate }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unit Price Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-cart-check-fill"></i>
+                        </div>
+                        <h2 class="card-title">客單價</h2>
+                    </div>
+                    <div class="stats-table">
+                        <div class="stats-row">
+                            <span class="stats-label">平均</span>
+                            <span class="stats-value large">{{ formatNumber(data.avgUnitPrice) }}</span>
+                        </div>
+                    </div>
+                    <div class="chart-container small" ref="unitPriceChart"></div>
+                </div>
+
+                <!-- Carbon Emission Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-yelp"></i>
+                        </div>
+                        <h2 class="card-title">碳排放量</h2>
+                    </div>
+                    <table class="carbon-table">
+                        <thead>
+                            <tr>
+                                <th class="label-col"></th>
+                                <th>單爐</th>
+                                <th>雙爐</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="label-col">總碳排</td>
+                                <td>{{ formatNumber(data.totalSCE) }} <small>g</small></td>
+                                <td>{{ formatNumber(data.totalDCE) }} <small>g</small></td>
+                            </tr>
+                            <tr>
+                                <td class="label-col">人均碳排</td>
+                                <td>{{ formatNumber(data.avgSCE) }} <small>g/人</small></td>
+                                <td>{{ formatNumber(data.avgDCE) }} <small>g/人</small></td>
+                            </tr>
+                            <tr>
+                                <td class="label-col">爐具使用率</td>
+                                <td>{{ data.useRateSCE }}</td>
+                                <td>{{ data.useRateDCE }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bottom Row Cards -->
+            <div class="card-grid bottom-row">
+                <!-- Product Sales Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        <h2 class="card-title">商品銷售</h2>
+                    </div>
+                    <div class="product-selector">
+                        <select v-model="selectedProductGroup" @@change="updateProductChart">
+                            <option v-for="(product, index) in data.products" :key="index" :value="index">
+                                {{ product.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="chart-container" ref="productChart"></div>
+                </div>
+
+                <!-- Customer Info Card -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="bi bi-person-badge-fill"></i>
+                        </div>
+                        <h2 class="card-title">顧客資訊</h2>
+                    </div>
+                    <div class="customer-grid">
+                        <div class="customer-section">
+                            <h4>性別</h4>
+                            <div class="chart-container small" ref="genderChart"></div>
+                        </div>
+                        <div class="customer-section">
+                            <h4>年齡</h4>
+                            <div class="chart-container small" ref="ageChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    filters: {
+                        interval: 'day',
+                        beginDate: '@ViewBag.BeginDate',
+                        endDate: '@ViewBag.EndDate',
+                        group: 'area'
+                    },
+                    data: {
+                        targetRevenue: 0,
+                        realRevenue: 0,
+                        revenueRate: '0%',
+                        revenueAchieved: false,
+                        customers: 0,
+                        consumers: 0,
+                        consumerRate: '0%',
+                        avgUnitPrice: 0,
+                        unitPrices: [],
+                        totalSCE: 0,
+                        totalDCE: 0,
+                        avgSCE: 0,
+                        avgDCE: 0,
+                        useRateSCE: '0%',
+                        useRateDCE: '0%',
+                        products: [],
+                        sexCounts: [0, 0],
+                        ageCounts: [0, 0, 0, 0, 0, 0]
+                    },
+                    selectedProductGroup: 0,
+                    charts: {}
+                };
+            },
+            mounted() {
+                this.initCharts();
+                this.updateDashboard();
+                this.initSortable();
+            },
+            methods: {
+                formatNumber(value) {
+                    if (!value && value !== 0) return '0';
+                    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                },
+                initSortable() {
+                    // 為上排卡片啟用拖拉排序
+                    const topRow = document.querySelector('.card-grid.top-row');
+                    if (topRow) {
+                        new Sortable(topRow, {
+                            animation: 150,
+                            ghostClass: 'sortable-ghost',
+                            dragClass: 'sortable-drag',
+                            handle: '.dashboard-card',
+                            onEnd: () => {
+                                // 拖拉完成後重新調整圖表大小
+                                this.$nextTick(() => {
+                                    Object.values(this.charts).forEach(chart => chart.resize());
+                                });
+                            }
+                        });
+                    }
+
+                    // 為下排卡片啟用拖拉排序
+                    const bottomRow = document.querySelector('.card-grid.bottom-row');
+                    if (bottomRow) {
+                        new Sortable(bottomRow, {
+                            animation: 150,
+                            ghostClass: 'sortable-ghost',
+                            dragClass: 'sortable-drag',
+                            handle: '.dashboard-card',
+                            onEnd: () => {
+                                // 拖拉完成後重新調整圖表大小
+                                this.$nextTick(() => {
+                                    Object.values(this.charts).forEach(chart => chart.resize());
+                                });
+                            }
+                        });
+                    }
+                },
+                initCharts() {
+                    this.charts.unitPrice = echarts.init(this.$refs.unitPriceChart);
+                    this.charts.product = echarts.init(this.$refs.productChart);
+                    this.charts.gender = echarts.init(this.$refs.genderChart);
+                    this.charts.age = echarts.init(this.$refs.ageChart);
+
+                    window.addEventListener('resize', () => {
+                        Object.values(this.charts).forEach(chart => chart.resize());
+                    });
+                },
+                async updateDashboard() {
+                    try {
+                        const params = new URLSearchParams({
+                            begin: this.filters.beginDate,
+                            end: this.filters.endDate,
+                            interval: this.filters.interval,
+                            group: this.filters.group
+                        });
+
+                        console.log('Fetching data with params:', params.toString());
+                        const response = await fetch(`/Dashboard/Tally?${params}`);
+                        console.log('Response status:', response.status);
+                        const result = await response.json();
+                        console.log('API Response:', result);
+
+                        if (result.success) {
+                            this.data.targetRevenue = result.targetRev || 0;
+                            this.data.realRevenue = result.realRev || 0;
+                            this.data.revenueRate = result.revRate || '0%';
+                            this.data.revenueAchieved = result.revAchieve || false;
+                            this.data.customers = result.customers || 0;
+                            this.data.consumers = result.consumers || 0;
+                            this.data.consumerRate = result.consumerRate || '0%';
+                            this.data.avgUnitPrice = result.avgUnitPrice || 0;
+                            this.data.unitPrices = result.unitPrices || [];
+                            this.data.totalSCE = result.totalSCE || 0;
+                            this.data.totalDCE = result.totalDCE || 0;
+                            this.data.avgSCE = result.avgSCE || 0;
+                            this.data.avgDCE = result.avgDCE || 0;
+                            this.data.useRateSCE = result.useRateSCE || '0%';
+                            this.data.useRateDCE = result.useRateDCE || '0%';
+                            this.data.products = result.products || [];
+                            this.data.sexCounts = result.sexCounts || [0, 0];
+                            this.data.ageCounts = result.ageCounts || [0, 0, 0, 0, 0, 0];
+
+                            this.updateUnitPriceChart();
+                            this.updateProductChart();
+                            this.updateGenderChart();
+                            this.updateAgeChart();
+                        } else {
+                            console.error('Failed to load data:', result.message);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching dashboard data:', error);
+                    }
+                },
+                updateUnitPriceChart() {
+                    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+                    const series = this.data.unitPrices.map((item, index) => ({
+                        name: item.name,
+                        type: 'bar',
+                        data: item.values.map(v => v.value),
+                        itemStyle: {
+                            color: colors[index % colors.length]
+                        },
+                        label: {
+                            show: true,
+                            position: 'top',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            color: colors[index % colors.length]
+                        }
+                    }));
+
+                    const option = {
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow' },
+                            formatter: (params) => {
+                                let result = `<b>${params[0].axisValue}</b><br/>`;
+                                params.forEach(item => {
+                                    result += `${item.marker} ${item.seriesName}: ${item.value}<br/>`;
+                                });
+                                return result;
+                            }
+                        },
+                        legend: {
+                            data: this.data.unitPrices.map(item => item.name),
+                            top: '0%'
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '15%',
+                            top: '15%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: this.data.unitPrices[0]?.values.map(v => v.title) || [],
+                            axisLabel: {
+                                interval: 0,
+                                rotate: 30,
+                                fontSize: 11,
+                                formatter: (value) => {
+                                    // 將分店名稱縮短以便顯示
+                                    return value.replace('築崎', '').replace('殿', '');
+                                }
+                            }
+                        },
+                        yAxis: {
+                            type: 'value',
+                            name: '金額 (元)'
+                        },
+                        series: series
+                    };
+
+                    this.charts.unitPrice.setOption(option);
+                },
+                updateProductChart() {
+                    if (!this.data.products.length) return;
+
+                    const product = this.data.products[this.selectedProductGroup];
+                    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
+
+                    const option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{b}: {c} ({d}%)'
+                        },
+                        legend: {
+                            orient: 'vertical',
+                            right: 10,
+                            top: 'center',
+                            formatter: (name) => {
+                                const item = product.values.find(v => v.title === name);
+                                return item ? `${name}: ${item.value}` : name;
+                            }
+                        },
+                        series: [{
+                            name: product.name,
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            avoidLabelOverlap: false,
+                            itemStyle: {
+                                borderRadius: 10,
+                                borderColor: '#fff',
+                                borderWidth: 2
+                            },
+                            label: {
+                                show: true,
+                                formatter: '{d}%',
+                                fontSize: 12,
+                                fontWeight: 'bold'
+                            },
+                            emphasis: {
+                                label: {
+                                    show: true,
+                                    fontSize: 20,
+                                    fontWeight: 'bold',
+                                    formatter: '{b}\n{c} ({d}%)'
+                                }
+                            },
+                            labelLine: {
+                                show: true,
+                                length: 10,
+                                length2: 10
+                            },
+                            data: product.values.map((v, index) => ({
+                                value: v.value,
+                                name: v.title,
+                                itemStyle: { color: colors[index % colors.length] }
+                            }))
+                        }]
+                    };
+
+                    this.charts.product.setOption(option);
+                },
+                updateGenderChart() {
+                    const option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{b}: {c} ({d}%)'
+                        },
+                        series: [{
+                            name: '性別',
+                            type: 'pie',
+                            radius: '70%',
+                            data: [
+                                { value: this.data.sexCounts[0], name: '男', itemStyle: { color: '#4facfe' } },
+                                { value: this.data.sexCounts[1], name: '女', itemStyle: { color: '#f093fb' } }
+                            ],
+                            label: {
+                                show: true,
+                                formatter: '{b}\n{c}\n({d}%)',
+                                fontSize: 13,
+                                fontWeight: 'bold'
+                            },
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }]
+                    };
+
+                    this.charts.gender.setOption(option);
+                },
+                updateAgeChart() {
+                    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+                    const option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{b}: {c} ({d}%)'
+                        },
+                        series: [{
+                            name: '年齡',
+                            type: 'pie',
+                            radius: '70%',
+                            data: [
+                                { value: this.data.ageCounts[0], name: '~20', itemStyle: { color: colors[0] } },
+                                { value: this.data.ageCounts[1], name: '20~30', itemStyle: { color: colors[1] } },
+                                { value: this.data.ageCounts[2], name: '30~40', itemStyle: { color: colors[2] } },
+                                { value: this.data.ageCounts[3], name: '40~50', itemStyle: { color: colors[3] } },
+                                { value: this.data.ageCounts[4], name: '50~60', itemStyle: { color: colors[4] } },
+                                { value: this.data.ageCounts[5], name: '60~', itemStyle: { color: colors[5] } }
+                            ],
+                            label: {
+                                show: true,
+                                formatter: '{b}\n{d}%',
+                                fontSize: 11,
+                                fontWeight: 'bold'
+                            },
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }]
+                    };
+
+                    this.charts.age.setOption(option);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
