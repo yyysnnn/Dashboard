@@ -695,7 +695,7 @@
                         });
 
                         console.log('Fetching data with params:', params.toString());
-                        const response = await fetch(`/Dashboard/Tally?${params}`);
+                        const response = await fetch(`@Url.Content("~/Dashboard/Tally")?${params}`);
                         console.log('Response status:', response.status);
                         const result = await response.json();
                         console.log('API Response:', result);
