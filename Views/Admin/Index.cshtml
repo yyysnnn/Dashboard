@@ -59,25 +59,25 @@
     </div>
     <div class="row">
         <div class="col-md-3 mb-3">
-            <a href="/Admin/Stores" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+            <a href="@Url.Action("Stores", "Admin")" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
                 <i class="bi bi-shop" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                 <span style="font-size: 1.1rem;">管理店舖</span>
             </a>
         </div>
         <div class="col-md-3 mb-3">
-            <a href="/Admin/Transactions" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+            <a href="@Url.Action("Transactions", "Admin")" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
                 <i class="bi bi-receipt" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                 <span style="font-size: 1.1rem;">查看交易</span>
             </a>
         </div>
         <div class="col-md-3 mb-3">
-            <a href="/Admin/Members" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+            <a href="@Url.Action("Members", "Admin")" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
                 <i class="bi bi-people-fill" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                 <span style="font-size: 1.1rem;">會員資料</span>
             </a>
         </div>
         <div class="col-md-3 mb-3">
-            <a href="/Admin/Revenues" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+            <a href="@Url.Action("Revenues", "Admin")" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
                 <i class="bi bi-graph-up-arrow" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                 <span style="font-size: 1.1rem;">營收目標</span>
             </a>
@@ -91,7 +91,7 @@
         <div class="admin-card">
             <div class="card-header-custom">
                 <h3><i class="bi bi-clock-history"></i> 最近交易</h3>
-                <a href="/Admin/Transactions" class="btn btn-sm btn-outline-primary">查看全部</a>
+                <a href="@Url.Action("Transactions", "Admin")" class="btn btn-sm btn-outline-primary">查看全部</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">
@@ -123,7 +123,7 @@
         <div class="admin-card" id="memberOverview">
             <div class="card-header-custom">
                 <h3><i class="bi bi-people-fill"></i> 會員總覽</h3>
-                <a href="/Admin/Members" class="btn btn-sm btn-outline-primary">查看全部</a>
+                <a href="@Url.Action("Members", "Admin")" class="btn btn-sm btn-outline-primary">查看全部</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">
