@@ -129,7 +129,7 @@
             methods: {
                 async loadRevenues() {
                     try {
-                        const response = await fetch('/Admin/GetRevenues');
+                        const response = await fetch('@Url.Content("~/Admin/GetRevenues")');
                         const result = await response.json();
 
                         if (result.success) {
@@ -158,7 +158,7 @@
                     try {
                         let successCount = 0;
                         for (const revenue of this.modifiedRevenues) {
-                            const response = await fetch('/Admin/UpdateRevenue', {
+                            const response = await fetch('@Url.Content("~/Admin/UpdateRevenue")', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'

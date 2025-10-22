@@ -187,7 +187,7 @@
             methods: {
                 async loadStatistics() {
                     try {
-                        const response = await fetch(`/Admin/GetStatistics?revenueMonth=${this.revenueMonth}`);
+                        const response = await fetch(`@Url.Content("~/Admin/GetStatistics")?revenueMonth=${this.revenueMonth}`);
                         const result = await response.json();
 
                         if (result.success) {
@@ -205,7 +205,7 @@
                 },
                 async loadMembers() {
                     try {
-                        const response = await fetch('/Admin/GetMembersOverview?page=1&pageSize=10');
+                        const response = await fetch('@Url.Content("~/Admin/GetMembersOverview")' + '?page=1&pageSize=10');
                         const result = await response.json();
 
                         if (result.success) {
@@ -218,7 +218,7 @@
                 },
                 async loadTransactions() {
                     try {
-                        const response = await fetch('/Admin/GetRecentTransactions?count=10');
+                        const response = await fetch('@Url.Content("~/Admin/GetRecentTransactions")' + '?count=10');
                         const result = await response.json();
 
                         if (result.success) {

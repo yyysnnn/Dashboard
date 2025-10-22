@@ -84,7 +84,7 @@
             methods: {
                 async loadStores() {
                     try {
-                        const response = await fetch('/Admin/GetStores');
+                        const response = await fetch('@Url.Content("~/Admin/GetStores")');
                         const result = await response.json();
 
                         if (result.success) {
@@ -101,7 +101,7 @@
                 },
                 async loadTransactions() {
                     try {
-                        let url = `/Admin/GetRecentTransactions?year=${this.selectedYear}&month=${this.selectedMonth}`;
+                        let url = `@Url.Content("~/Admin/GetRecentTransactions")?year=${this.selectedYear}&month=${this.selectedMonth}`;
                         if (this.selectedStore) {
                             url += `&storeId=${this.selectedStore}`;
                         }
