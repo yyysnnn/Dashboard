@@ -1,0 +1,198 @@
+@{
+    ViewData["Title"] = "營收目標";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div id="revenuesApp">
+    <div class="admin-card">
+        <div class="card-header-custom">
+            <h3><i class="bi bi-graph-up-arrow"></i> 營收目標設定</h3>
+            <div>
+                <button class="btn btn-sm btn-success" @@click="saveAll" :disabled="saving">
+                    <i class="bi bi-save"></i> {{ saving ? '儲存中...' : '儲存所有變更' }}
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">店舖代碼</th>
+                        <th style="width: 35%;">店舖名稱</th>
+                        <th style="width: 30%;">目標營收</th>
+                        <th style="width: 20%;">操作</th>
+                    </tr>
+                </thead>
+                <tbody v-if="revenues.length > 0">
+                    <tr v-for="revenue in revenues" :key="revenue.id">
+                        <td><span class="badge bg-primary">{{ revenue.storeID }}</span></td>
+                        <td><strong>{{ revenue.storeName }}</strong></td>
+                        <td>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    v-model.number="revenue.amount"
+                                    :class="{ 'border-warning': revenue.modified }"
+                                    @@input="markModified(revenue)"
+                                    min="0"
+                                    step="1000">
+                            </div>
+                        </td>
+                        <td>
+                            <span v-if="revenue.modified" class="badge bg-warning">
+                                <i class="bi bi-exclamation-circle"></i> 已修改
+                            </span>
+                            <span v-else class="text-muted">
+                                <i class="bi bi-check-circle"></i> 未修改
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
+                <tbody v-else>
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">載入中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3" v-if="revenues.length > 0">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                修改目標營收後，請點擊右上角的「儲存所有變更」按鈕來保存設定。
+            </div>
+        </div>
+    </div>
+
+    <!-- 營收統計 -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 2.5rem; color: #4facfe; margin-bottom: 1rem;">
+                    <i class="bi bi-bullseye"></i>
+                </div>
+                <h5 class="text-muted mb-2">總目標營收</h5>
+                <h2 class="text-primary fw-bold">${{ formatNumber(totalRevenue) }}</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 2.5rem; color: #43e97b; margin-bottom: 1rem;">
+                    <i class="bi bi-calculator"></i>
+                </div>
+                <h5 class="text-muted mb-2">平均目標</h5>
+                <h2 class="text-success fw-bold">${{ formatNumber(avgRevenue) }}</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 2.5rem; color: #f093fb; margin-bottom: 1rem;">
+                    <i class="bi bi-shop"></i>
+                </div>
+                <h5 class="text-muted mb-2">店舖數量</h5>
+                <h2 class="text-info fw-bold">{{ revenues.length }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/vue.global.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    revenues: [],
+                    originalRevenues: [],
+                    saving: false
+                };
+            },
+            computed: {
+                totalRevenue() {
+                    return this.revenues.reduce((sum, r) => sum + r.amount, 0);
+                },
+                avgRevenue() {
+                    return this.revenues.length > 0
+                        ? Math.round(this.totalRevenue / this.revenues.length)
+                        : 0;
+                },
+                modifiedRevenues() {
+                    return this.revenues.filter(r => r.modified);
+                }
+            },
+            mounted() {
+                this.loadRevenues();
+            },
+            methods: {
+                async loadRevenues() {
+                    try {
+                        const response = await fetch('/Admin/GetRevenues');
+                        const result = await response.json();
+
+                        if (result.success) {
+                            this.revenues = result.revenues.map(r => ({
+                                ...r,
+                                modified: false
+                            }));
+                            this.originalRevenues = JSON.parse(JSON.stringify(result.revenues));
+                        }
+                    } catch (error) {
+                        console.error('載入營收目標失敗:', error);
+                    }
+                },
+                markModified(revenue) {
+                    const original = this.originalRevenues.find(r => r.id === revenue.id);
+                    revenue.modified = original && original.amount !== revenue.amount;
+                },
+                async saveAll() {
+                    if (this.modifiedRevenues.length === 0) {
+                        alert('沒有需要儲存的變更');
+                        return;
+                    }
+
+                    this.saving = true;
+
+                    try {
+                        let successCount = 0;
+                        for (const revenue of this.modifiedRevenues) {
+                            const response = await fetch('/Admin/UpdateRevenue', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    id: revenue.id,
+                                    amount: revenue.amount
+                                })
+                            });
+
+                            const result = await response.json();
+                            if (result.success) {
+                                successCount++;
+                                revenue.modified = false;
+                            }
+                        }
+
+                        if (successCount > 0) {
+                            alert(`成功更新 ${successCount} 筆營收目標！`);
+                            // 重新載入原始資料
+                            this.originalRevenues = JSON.parse(JSON.stringify(this.revenues));
+                        }
+                    } catch (error) {
+                        console.error('儲存營收目標失敗:', error);
+                        alert('儲存失敗，請稍後再試');
+                    } finally {
+                        this.saving = false;
+                    }
+                },
+                formatNumber(value) {
+                    if (!value && value !== 0) return '0';
+                    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                }
+            }
+        }).mount('#revenuesApp');
+    </script>
+}

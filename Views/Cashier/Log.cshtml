@@ -1,0 +1,50 @@
+@model List<Dashboard.Models.Transaction>
+@{
+    ViewData["Title"] = "收銀機交易記錄";
+}
+
+<div class="container mt-4">
+    <h2><i class="bi bi-receipt"></i> 收銀機交易記錄</h2>
+    <p class="text-muted">最近接收到的 100 筆交易資料</p>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>交易編號</th>
+                            <th>時間</th>
+                            <th>店舖代碼</th>
+                            <th>金額</th>
+                            <th>來客數</th>
+                            <th>消費人數</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Count > 0)
+                        {
+                            @foreach (var trans in Model)
+                            {
+                                <tr>
+                                    <td><span class="badge bg-secondary">@trans.ID</span></td>
+                                    <td>@(trans.Time?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                                    <td>@trans.StoreID</td>
+                                    <td class="text-success fw-bold">$@trans.Amount.ToString("N0")</td>
+                                    <td>@trans.NumOfCustomers</td>
+                                    <td>@trans.NumOfConsumers</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">尚無交易記錄</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,242 @@
+@{
+    ViewData["Title"] = "店舖管理";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div id="storesApp">
+    <div class="admin-card">
+        <div class="card-header-custom">
+            <h3><i class="bi bi-shop"></i> 店舖資料</h3>
+            <div>
+                <button class="btn btn-sm btn-primary" @@click="showAddModal = true">
+                    <i class="bi bi-plus-circle"></i> 新增店舖
+                </button>
+                <span class="text-muted ms-3">共 {{ stores.length }} 間店舖</span>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>店舖代碼</th>
+                        <th>店舖名稱</th>
+                        <th>區域</th>
+                        <th>品牌</th>
+                        <th>地點類型</th>
+                    </tr>
+                </thead>
+                <tbody v-if="stores.length > 0">
+                    <tr v-for="store in stores" :key="store.id">
+                        <td><span class="badge bg-primary">{{ store.id }}</span></td>
+                        <td><strong>{{ store.name }}</strong></td>
+                        <td>{{ store.area }}</td>
+                        <td>
+                            <span class="badge" :class="store.brand === 'A' ? 'bg-danger' : 'bg-success'">
+                                {{ store.brandName }}
+                            </span>
+                        </td>
+                        <td>{{ store.spotName }}</td>
+                    </tr>
+                </tbody>
+                <tbody v-else>
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">載入中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 店舖統計 -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <h5 class="text-muted mb-3">品牌統計</h5>
+                <div v-for="(count, brand) in brandStats" :key="brand" class="mb-2">
+                    <span class="badge" :class="brand === '築崎燒串' ? 'bg-danger' : 'bg-success'" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                        {{ brand }}: {{ count }} 間
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <h5 class="text-muted mb-3">地點類型統計</h5>
+                <div v-for="(count, spot) in spotStats" :key="spot" class="mb-2">
+                    <span class="badge bg-info" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                        {{ spot }}: {{ count }} 間
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="admin-card text-center">
+                <h5 class="text-muted mb-3">區域統計</h5>
+                <div v-for="(count, area) in areaStats" :key="area" class="mb-2">
+                    <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                        {{ area }}: {{ count }} 間
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增店舖 Modal -->
+    <div v-if="showAddModal" class="modal d-block" style="background: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle"></i> 新增店舖</h5>
+                    <button type="button" class="btn-close" @@click="closeAddModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">店舖代碼 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" v-model="newStore.id" maxlength="8" placeholder="例如：A01">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">店舖名稱 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" v-model="newStore.name" maxlength="64" placeholder="例如：築崎燒串-台北店">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">區域 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" v-model="newStore.area" maxlength="8" placeholder="例如：台北">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">品牌 <span class="text-danger">*</span></label>
+                        <select class="form-select" v-model="newStore.brand">
+                            <option value="">請選擇品牌</option>
+                            <option value="A">築崎燒串</option>
+                            <option value="B">築崎鍋物</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">地點類型 <span class="text-danger">*</span></label>
+                        <select class="form-select" v-model="newStore.spot">
+                            <option value="">請選擇地點類型</option>
+                            <option value="A">街邊</option>
+                            <option value="B">賣場</option>
+                            <option value="C">學區</option>
+                            <option value="D">社區</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @@click="closeAddModal">取消</button>
+                    <button type="button" class="btn btn-primary" @@click="addStore" :disabled="saving">
+                        {{ saving ? '新增中...' : '確認新增' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/vue.global.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    stores: [],
+                    showAddModal: false,
+                    saving: false,
+                    newStore: {
+                        id: '',
+                        name: '',
+                        area: '',
+                        brand: '',
+                        spot: ''
+                    }
+                };
+            },
+            computed: {
+                brandStats() {
+                    const stats = {};
+                    this.stores.forEach(store => {
+                        stats[store.brandName] = (stats[store.brandName] || 0) + 1;
+                    });
+                    return stats;
+                },
+                spotStats() {
+                    const stats = {};
+                    this.stores.forEach(store => {
+                        stats[store.spotName] = (stats[store.spotName] || 0) + 1;
+                    });
+                    return stats;
+                },
+                areaStats() {
+                    const stats = {};
+                    this.stores.forEach(store => {
+                        stats[store.area] = (stats[store.area] || 0) + 1;
+                    });
+                    return stats;
+                }
+            },
+            mounted() {
+                this.loadStores();
+            },
+            methods: {
+                async loadStores() {
+                    try {
+                        const response = await fetch('/Admin/GetStores');
+                        const result = await response.json();
+
+                        if (result.success) {
+                            this.stores = result.stores;
+                        }
+                    } catch (error) {
+                        console.error('載入店舖資料失敗:', error);
+                    }
+                },
+                closeAddModal() {
+                    this.showAddModal = false;
+                    this.newStore = {
+                        id: '',
+                        name: '',
+                        area: '',
+                        brand: '',
+                        spot: ''
+                    };
+                },
+                async addStore() {
+                    // 驗證必填欄位
+                    if (!this.newStore.id || !this.newStore.name || !this.newStore.area ||
+                        !this.newStore.brand || !this.newStore.spot) {
+                        alert('請填寫所有必填欄位');
+                        return;
+                    }
+
+                    this.saving = true;
+
+                    try {
+                        const response = await fetch('/Admin/AddStore', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.newStore)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            alert('新增店舖成功！');
+                            this.closeAddModal();
+                            this.loadStores(); // 重新載入店舖清單
+                        } else {
+                            alert('新增失敗：' + result.message);
+                        }
+                    } catch (error) {
+                        console.error('新增店舖失敗:', error);
+                        alert('新增失敗，請稍後再試');
+                    } finally {
+                        this.saving = false;
+                    }
+                }
+            }
+        }).mount('#storesApp');
+    </script>
+}

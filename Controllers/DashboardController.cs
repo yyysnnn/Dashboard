@@ -1,202 +1,745 @@
 using Microsoft.AspNetCore.Mvc;
+using Dashboard.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Dashboard.Controllers;
 
 public class DashboardController : Controller
 {
     private readonly ILogger<DashboardController> _logger;
+    private readonly ZuchiDB _db;
 
-    public DashboardController(ILogger<DashboardController> logger)
+    public DashboardController(ILogger<DashboardController> logger, ZuchiDB db)
     {
         _logger = logger;
+        _db = db;
     }
 
     public IActionResult Index()
     {
-        ViewBag.BeginDate = DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
-        ViewBag.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
+        // 預設顯示當天-3天到當天的資料
+        DateTime today = DateTime.Today;
+        DateTime beginDate = today.AddDays(-3);
+
+        ViewBag.BeginDate = Utility.ToHtmlDate(beginDate);
+        ViewBag.EndDate = Utility.ToHtmlDate(today);
         return View();
     }
 
-    // API endpoint for getting chart data
     [HttpGet]
-    public IActionResult GetChartData()
+    public IActionResult TestConnection()
     {
-        // 暫時返回示例數據，之後可以連接實際資料來源
-        var data = new
+        try
         {
-            labels = new[] { "一月", "二月", "三月", "四月", "五月", "六月" },
-            datasets = new[]
-            {
-                new
-                {
-                    label = "銷售額",
-                    data = new[] { 12500, 15200, 18300, 22100, 19800, 24500 },
-                    backgroundColor = "rgba(78, 115, 223, 0.2)",
-                    borderColor = "rgba(78, 115, 223, 1)",
-                    borderWidth = 2
-                }
-            }
-        };
+            // 測試資料庫連線
+            var canConnect = _db.Database.CanConnect();
 
-        return Json(data);
+            if (canConnect)
+            {
+                // 嘗試讀取一些基本資料
+                var storeCount = _db.Stores.Count();
+                var transactionCount = _db.Transactions.Count();
+                var memberCount = _db.Members.Count();
+
+                return Json(new
+                {
+                    success = true,
+                    message = "資料庫連線成功！",
+                    data = new
+                    {
+                        storeCount = storeCount,
+                        transactionCount = transactionCount,
+                        memberCount = memberCount,
+                        connectionString = "100.124.60.109 (ZUCHI)"
+                    }
+                });
+            }
+            else
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "無法連接到資料庫"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "資料庫連線測試失敗");
+            return Json(new
+            {
+                success = false,
+                message = "資料庫連線測試失敗",
+                error = ex.Message,
+                innerError = ex.InnerException?.Message
+            });
+        }
     }
 
     [HttpGet]
-    public IActionResult GetPieChartData()
+    public IActionResult DebugUnitPrice(string begin = "2025-10-17", string end = "2025-10-20", string group = "custom")
     {
-        var data = new
+        try
         {
-            labels = new[] { "產品A", "產品B", "產品C", "產品D", "其他" },
-            datasets = new[]
+            DateTime beginDate = Utility.FromHtmlDate(begin);
+            DateTime endDate = Utility.FromHtmlDate(end).AddDays(1);
+
+            var transactions = _db.Transactions
+                .Where(x => x.Time >= beginDate && x.Time <= endDate)
+                .ToList();
+
+            var stores = _db.Stores.ToArray();
+
+            // 檢查 A01 的交易資料
+            var a01Transactions = transactions.Where(t => t.StoreID == "A01").ToList();
+
+            var a01Info = new
             {
-                new
+                storeID = "A01",
+                storeName = stores.FirstOrDefault(s => s.ID == "A01")?.Name,
+                transactionCount = a01Transactions.Count,
+                totalAmount = a01Transactions.Sum(t => t.Amount),
+                totalConsumers = a01Transactions.Sum(t => t.NumOfConsumers),
+                totalCustomers = a01Transactions.Sum(t => t.NumOfCustomers),
+                avgUnitPrice = a01Transactions.Sum(t => t.NumOfConsumers) > 0
+                    ? a01Transactions.Sum(t => t.Amount) / a01Transactions.Sum(t => t.NumOfConsumers)
+                    : 0,
+                transactions = a01Transactions.Select(t => new {
+                    t.Time,
+                    t.Amount,
+                    t.NumOfConsumers,
+                    t.NumOfCustomers
+                }).Take(5).ToList()
+            };
+
+            return Json(new
+            {
+                success = true,
+                dateRange = $"{begin} ~ {end}",
+                totalTransactions = transactions.Count,
+                a01Info = a01Info,
+                allStores = transactions.GroupBy(t => t.StoreID).Select(g => new {
+                    storeID = g.Key,
+                    storeName = stores.FirstOrDefault(s => s.ID == g.Key)?.Name,
+                    count = g.Count(),
+                    totalAmount = g.Sum(t => t.Amount),
+                    totalConsumers = g.Sum(t => t.NumOfConsumers)
+                }).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DebugUnitPrice 失敗");
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                stackTrace = ex.StackTrace
+            });
+        }
+    }
+
+    [HttpGet]
+    public IActionResult DebugTally(string begin = "2025-10-01", string end = "2025-10-03")
+    {
+        try
+        {
+            DateTime beginDate = Utility.FromHtmlDate(begin);
+            DateTime endDate = Utility.FromHtmlDate(end).AddDays(1);
+
+            // 測試商品統計
+            var r4 = TallyProducts(beginDate, endDate, "area");
+            var productInfo = new
+            {
+                groupCount = r4.Count,
+                groups = r4.Select(g => new
                 {
-                    data = new[] { 35, 25, 20, 15, 5 },
-                    backgroundColor = new[]
-                    {
-                        "rgba(78, 115, 223, 0.8)",
-                        "rgba(28, 200, 138, 0.8)",
-                        "rgba(54, 185, 204, 0.8)",
-                        "rgba(246, 194, 62, 0.8)",
-                        "rgba(231, 74, 59, 0.8)"
-                    }
+                    name = g.Key,
+                    productCount = g.Value.Count,
+                    topProducts = g.Value.Take(5).Select(p => new { p.Key, p.Value }).ToList()
+                }).ToList()
+            };
+
+            // 測試會員統計
+            var r5 = TallyMembers();
+
+            return Json(new
+            {
+                success = true,
+                products = productInfo,
+                members = new
+                {
+                    sexCounts = r5.Item1,
+                    ageCounts = r5.Item2
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DebugTally 失敗");
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                stackTrace = ex.StackTrace
+            });
+        }
+    }
+
+    [HttpGet]
+    public IActionResult DebugData()
+    {
+        try
+        {
+            // 檢查資料庫中有哪些資料
+            var firstTransaction = _db.Transactions.OrderBy(t => t.Time).FirstOrDefault();
+            var lastTransaction = _db.Transactions.OrderByDescending(t => t.Time).FirstOrDefault();
+            var transactionCount = _db.Transactions.Count();
+            var stores = _db.Stores.Select(s => new { s.ID, s.Name, s.Area, s.Brand }).ToList();
+            var revenueCount = _db.Revenues.Count();
+
+            // 檢查商品資料
+            var totalItems = _db.TransactionItems.Count();
+            var itemsWithProduct = _db.TransactionItems.Where(x => x.Product != null && x.Product != "").Count();
+            var sampleProducts = _db.TransactionItems
+                .Where(x => x.Product != null && x.Product != "")
+                .Select(x => x.Product)
+                .Distinct()
+                .Take(10)
+                .ToList();
+
+            // 檢查會員資料
+            var memberCount = _db.Members.Count();
+            var membersWithSex = _db.Members.Where(m => m.Sex != null && m.Sex != "").Count();
+
+            return Json(new
+            {
+                success = true,
+                transactionCount = transactionCount,
+                firstTransactionDate = firstTransaction?.Time?.ToString("yyyy-MM-dd"),
+                lastTransactionDate = lastTransaction?.Time?.ToString("yyyy-MM-dd"),
+                stores = stores,
+                revenueCount = revenueCount,
+                totalItems = totalItems,
+                itemsWithProduct = itemsWithProduct,
+                sampleProducts = sampleProducts,
+                memberCount = memberCount,
+                membersWithSex = membersWithSex,
+                hint = "請將日期範圍設定在 firstTransactionDate 和 lastTransactionDate 之間"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Debug 失敗");
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                innerError = ex.InnerException?.Message
+            });
+        }
+    }
+
+    private Tuple<int, int> TallyRevenue(DateTime beginDate, DateTime endDate, List<Transaction> transactions)
+    {
+        int targetRevenue = 0;
+        var plans = _db.Revenues.ToList();
+        foreach (var p in plans)
+        {
+            targetRevenue += p.Amount;
+        }
+
+        int days = (endDate - beginDate).Days + 1;
+        int totalDays = 0;
+        DateTime ym = beginDate;
+        while (ym <= endDate)
+        {
+            totalDays += DateTime.DaysInMonth(ym.Year, ym.Month);
+            ym = ym.AddMonths(1);
+        }
+        targetRevenue = Convert.ToInt32(targetRevenue * (double)days / totalDays);
+
+        int realRevenue = 0;
+        foreach (var t in transactions)
+        {
+            realRevenue += t.Amount;
+        }
+
+        return Tuple.Create(targetRevenue, realRevenue);
+    }
+
+    private Tuple<int, int> TallyConsumers(DateTime beginDate, DateTime endDate, List<Transaction> transactions)
+    {
+        int custs = 0;
+        int cons = 0;
+
+        foreach (var t in transactions)
+        {
+            custs += t.NumOfCustomers;
+            cons += t.NumOfConsumers;
+        }
+
+        return Tuple.Create(custs, cons);
+    }
+
+    private List<KeyValuePair<string, List<ValueData>>> TallyUnitPrice(DateTime beginDate, DateTime endDate, string interval, string group,
+        List<Transaction> transactions)
+    {
+        var data = new SortedList<string, List<ValueData>>();
+
+        var tic = new TimeIntervalClassifier(beginDate, endDate, interval);
+        var sc = new StoreClassifier(group);
+        var stores = _db.Stores.ToArray();
+
+        foreach (var t in transactions)
+        {
+            if (t.Time == null) continue;
+
+            t.Store = stores.Where(x => x.ID == t.StoreID).FirstOrDefault();
+
+            string name = tic.GetName((DateTime)t.Time);
+            if (!data.ContainsKey(name))
+            {
+                var list = sc.CreateCollections(stores);
+                data.Add(name, list);
+            }
+
+            var cv = data[name].Where(x => x.Title == sc.GetTitle(t.Store)).FirstOrDefault();
+            if (cv != null)
+            {
+                cv.Value1 += t.Amount;
+                cv.Value2 += t.NumOfConsumers;
+                cv.Value3 = cv.Value2 > 0 ? cv.Value1 / cv.Value2 : 0;
+            }
+        }
+
+        var result = data.OrderBy(x => x.Key).ToList();
+        return result;
+    }
+
+    private SortedList<string, List<KeyValuePair<string, int>>> TallyProducts(DateTime beginDate, DateTime endDate, string group)
+    {
+        var data = new SortedList<string, Dictionary<string, int>>();
+
+        var sc = new StoreClassifier(group);
+        var stores = _db.Stores.ToArray();
+
+        // 使用原始 SQL 查詢或分步驟讀取，避免 NULL 值問題
+        List<TransactionItem> items;
+        try
+        {
+            items = _db.TransactionItems
+                .Include(x => x.Master)
+                .ThenInclude(m => m!.Store)
+                .Where(x => x.Master!.Time >= beginDate && x.Master.Time <= endDate)
+                .AsEnumerable()  // 改為在記憶體中處理
+                .Where(x => !string.IsNullOrEmpty(x.Product))  // 只檢查 Product 不為空
+                .ToList();
+
+            _logger.LogInformation("TallyProducts: Found {Count} items in date range", items.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "TallyProducts failed to fetch items");
+            // 如果還是失敗，返回空結果
+            return new SortedList<string, List<KeyValuePair<string, int>>>();
+        }
+
+        foreach (var item in items)
+        {
+            // 確保商品名稱不是空的
+            if (string.IsNullOrEmpty(item.Product))
+                continue;
+
+            string name = sc.GetTitle(item.Master?.Store);
+
+            // 跳過空的分組名稱
+            if (string.IsNullOrEmpty(name))
+                continue;
+
+            if (!data.ContainsKey(name))
+            {
+                var dic = new Dictionary<string, int>();
+                data.Add(name, dic);
+            }
+
+            if (data[name].TryGetValue(item.Product, out int count))
+            {
+                data[name][item.Product] = count + item.Qty;
+            }
+            else
+            {
+                data[name].Add(item.Product, item.Qty);
+            }
+        }
+
+        var result = new SortedList<string, List<KeyValuePair<string, int>>>();
+        foreach (string key in data.Keys)
+        {
+            var list = data[key].OrderBy(x => x.Value).Reverse().ToList();
+            result.Add(key, list);
+        }
+
+        return result;
+    }
+
+    private Tuple<int[], int[]> TallyMembers()
+    {
+        int[] sexCounts = new int[2];
+        int[] ageCounts = new int[6];
+        DateTime today = DateTime.Today;
+
+        var members = _db.Members.ToList();
+        foreach (var member in members)
+        {
+            if (member.Sex == "M") sexCounts[0]++;
+            else if (member.Sex == "F") sexCounts[1]++;
+
+            int age = today.Year - member.BirthDay.Year;
+            if (age < 20) ageCounts[0]++;
+            else if (age < 30) ageCounts[1]++;
+            else if (age < 40) ageCounts[2]++;
+            else if (age < 50) ageCounts[3]++;
+            else if (age < 60) ageCounts[4]++;
+            else ageCounts[5]++;
+        }
+
+        return Tuple.Create(sexCounts, ageCounts);
+    }
+
+    private Tuple<double[], double[]> TallyCarbonEmissions(List<Transaction> transactions)
+    {
+        int t4Open = 0;
+        int t6Open = 0;
+        int t4Custs = 0;
+        int t6Custs = 0;
+
+        foreach (var t in transactions)
+        {
+            if (t.NumOfCustomers <= 4)
+            {
+                t4Open++;
+                t4Custs += t.NumOfCustomers;
+            }
+            else if (t.NumOfCustomers <= 6)
+            {
+                t6Open++;
+                t6Custs += t.NumOfCustomers;
+            }
+            else if (t.NumOfCustomers <= 8)
+            {
+                t4Open += 2;
+                t4Custs += t.NumOfCustomers;
+            }
+            else
+            {
+                t6Open += t.NumOfCustomers / 6;
+                t6Custs += (t.NumOfCustomers / 6) * 6;
+                if (t.NumOfCustomers % 6 > 4)
+                {
+                    t6Open++;
+                    t6Custs += (t.NumOfCustomers % 6);
+                }
+                else
+                {
+                    t4Open++;
+                    t4Custs += (t.NumOfCustomers % 6);
                 }
             }
-        };
+        }
 
-        return Json(data);
+        double[] secs = new double[3];
+        secs[0] = 30 * t4Open * 120;
+        secs[1] = t4Custs > 0 ? secs[0] / t4Custs : 0;
+        secs[2] = t4Open > 0 ? (double)t4Custs / (t4Open * 4) : 0;
+
+        double[] dces = new double[3];
+        dces[0] = 50 * t6Open * 120;
+        dces[1] = t6Custs > 0 ? dces[0] / t6Custs : 0;
+        dces[2] = t6Open > 0 ? (double)t6Custs / (t6Open * 6) : 0;
+
+        return Tuple.Create(secs, dces);
     }
 
     [HttpGet]
     public IActionResult Tally(string begin, string end, string interval, string group)
     {
-        // 模擬數據 - 之後可以連接真實資料庫
-        // 根據不同的篩選條件調整假資料
-        var random = new Random();
+        var jso = new TallyResultJSO();
 
-        // 基礎數據
-        var baseRevenue = 500000;
-        var actualRevenue = 567890 + random.Next(-50000, 100000);
-        var revenueRate = Math.Round((double)actualRevenue / baseRevenue * 100, 1);
-
-        var totalCustomers = 1234 + random.Next(-200, 300);
-        var totalConsumers = (int)(totalCustomers * 0.8) + random.Next(-50, 50);
-        var consumerRate = Math.Round((double)totalConsumers / totalCustomers * 100, 1);
-
-        var avgPrice = actualRevenue / totalConsumers;
-
-        // 分店名稱（固定顯示在客單價圖表的橫軸）
-        string[] storeNames = new[] {
-            "築崎燒串松竹店",
-            "築崎鍋物太平殿",
-            "築崎鍋物北屯旗艦殿",
-            "築崎鍋物豐原殿"
-        };
-
-        // 根據 interval 生成不同的時間標籤（用於數據系列名稱）
-        string[] timeLabels = interval switch
+        try
         {
-            "day" => new[] { "今日", "昨日", "前日" },
-            "week" => new[] { "本週", "上週", "上上週" },
-            "month" => new[] { "本月", "上月", "上上月" },
-            _ => new[] { "本週", "上週", "上上週" }
-        };
+            DateTime beginDate = Utility.FromHtmlDate(begin);
+            DateTime endDate = Utility.FromHtmlDate(end).AddDays(1);
 
-        var data = new
-        {
-            success = true,
-            message = "Success",
-            targetRev = baseRevenue,
-            realRev = actualRevenue,
-            revRate = $"{revenueRate}%",
-            revAchieve = revenueRate >= 100,
-            customers = totalCustomers,
-            consumers = totalConsumers,
-            consumerRate = $"{consumerRate}%",
-            avgUnitPrice = avgPrice,
-            unitPrices = timeLabels.Select(timeName => new
+            if (beginDate > endDate)
             {
-                name = timeName,
-                values = storeNames.Select(storeName => new
-                {
-                    title = storeName,
-                    value = random.Next(400, 800)
-                }).ToArray()
-            }).ToArray(),
-            totalSCE = 65000 + random.Next(-5000, 10000),
-            totalDCE = 28000 + random.Next(-3000, 5000),
-            avgSCE = 220 + random.Next(-20, 40),
-            avgDCE = 135 + random.Next(-15, 30),
-            useRateSCE = $"{random.Next(85, 105)}%",
-            useRateDCE = $"{random.Next(110, 135)}%",
-            products = new[]
-            {
-                new
-                {
-                    name = "築崎燒串松竹店",
-                    values = new[]
-                    {
-                        new { title = "美式咖啡", value = 350 + random.Next(-50, 100) },
-                        new { title = "拿鐵咖啡", value = 420 + random.Next(-50, 100) },
-                        new { title = "珍珠奶茶", value = 380 + random.Next(-50, 100) },
-                        new { title = "綠茶", value = 280 + random.Next(-50, 100) },
-                        new { title = "柳橙汁", value = 150 + random.Next(-30, 60) },
-                        new { title = "可樂", value = 120 + random.Next(-20, 40) }
-                    }
-                },
-                new
-                {
-                    name = "餐點類",
-                    values = new[]
-                    {
-                        new { title = "法式吐司", value = 320 + random.Next(-50, 80) },
-                        new { title = "炸雞套餐", value = 580 + random.Next(-80, 120) },
-                        new { title = "牛肉麵", value = 450 + random.Next(-60, 100) },
-                        new { title = "義大利麵", value = 390 + random.Next(-50, 90) },
-                        new { title = "鐵板牛排", value = 680 + random.Next(-100, 150) },
-                        new { title = "三明治", value = 230 + random.Next(-40, 60) }
-                    }
-                },
-                new
-                {
-                    name = "甜點類",
-                    values = new[]
-                    {
-                        new { title = "提拉米蘇", value = 180 + random.Next(-30, 50) },
-                        new { title = "起司蛋糕", value = 200 + random.Next(-30, 60) },
-                        new { title = "巧克力布朗尼", value = 150 + random.Next(-25, 45) },
-                        new { title = "水果塔", value = 160 + random.Next(-25, 50) },
-                        new { title = "馬卡龍", value = 120 + random.Next(-20, 40) },
-                        new { title = "鬆餅", value = 140 + random.Next(-25, 45) }
-                    }
-                },
-                new
-                {
-                    name = "輕食類",
-                    values = new[]
-                    {
-                        new { title = "凱薩沙拉", value = 180 + random.Next(-30, 50) },
-                        new { title = "田園沙拉", value = 160 + random.Next(-25, 45) },
-                        new { title = "雞肉捲", value = 150 + random.Next(-25, 40) },
-                        new { title = "吐司套餐", value = 100 + random.Next(-15, 30) }
-                    }
-                }
-            },
-            sexCounts = new[] {
-                totalCustomers * 47 / 100,  // 男性約 47%
-                totalCustomers * 53 / 100   // 女性約 53%
-            },
-            ageCounts = new[] {
-                totalCustomers * 8 / 100,   // ~20歲
-                totalCustomers * 32 / 100,  // 20~30歲
-                totalCustomers * 28 / 100,  // 30~40歲
-                totalCustomers * 18 / 100,  // 40~50歲
-                totalCustomers * 10 / 100,  // 50~60歲
-                totalCustomers * 4 / 100    // 60歲~
+                jso.success = false;
+                jso.message = "開始日期不能大於結束日期";
             }
-        };
+            else
+            {
+                if (interval == "day" && (endDate - beginDate).Days > 7) endDate = beginDate.AddDays(7);
+                else if (interval == "week" && (endDate - beginDate).Days > 56) endDate = beginDate.AddDays(56);
+                else if (interval == "month" && (endDate - beginDate).Days > 365) endDate = beginDate.AddDays(365);
 
-        return Json(data);
+                var transactions = _db.Transactions
+                    .Where(x => x.Time >= beginDate && x.Time <= endDate)
+                    .ToList();
+
+                var r1 = TallyRevenue(beginDate, endDate, transactions);
+                var r2 = TallyConsumers(beginDate, endDate, transactions);
+                var r3 = TallyUnitPrice(beginDate, endDate, interval, group, transactions);
+                var r4 = TallyProducts(beginDate, endDate, group);
+                var r5 = TallyMembers();
+                var r6 = TallyCarbonEmissions(transactions);
+
+                _logger.LogInformation("Products count: {Count}", r4.Count);
+                _logger.LogInformation("Members - Sex counts: {SexCounts}, Age counts: {AgeCounts}",
+                    string.Join(",", r5.Item1), string.Join(",", r5.Item2));
+
+                jso.success = true;
+                jso.SetRevenue(r1.Item1, r1.Item2);
+                jso.SetConsumers(r2.Item1, r2.Item2);
+                jso.SetUnitPrices(r3);
+                jso.SetProducts(r4);
+                jso.SetMemberCounts(r5);
+                jso.SetCarbonEmissions(r6);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in Tally method");
+            jso.success = false;
+            jso.message = ex.Message;
+        }
+
+        return Json(jso);
+    }
+}
+
+public class TimeIntervalClassifier
+{
+    private DateTime BeginDate;
+    private DateTime EndDate;
+    private string Interval;
+
+    public TimeIntervalClassifier(DateTime beginDate, DateTime endDate, string interval)
+    {
+        BeginDate = beginDate;
+        EndDate = endDate;
+        Interval = interval;
+    }
+
+    public string GetName(DateTime date)
+    {
+        string name = "";
+        switch (Interval)
+        {
+            case "day":
+                name = date.ToString("M");
+                break;
+            case "week":
+                name = string.Format("第{0}週", (date - BeginDate).Days / 7 + 1);
+                break;
+            case "month":
+                name = date.ToString("Y");
+                break;
+        }
+        return name;
+    }
+}
+
+public class ValueData
+{
+    public string Title { get; set; } = string.Empty;
+    public double Value1 { get; set; }
+    public double Value2 { get; set; }
+    public double Value3 { get; set; }
+}
+
+public class StoreClassifier
+{
+    private string Group;
+
+    public StoreClassifier(string group)
+    {
+        Group = group;
+    }
+
+    public string GetTitle(Store? store)
+    {
+        if (store == null) return "";
+
+        string title = "";
+        switch (Group)
+        {
+            case "area":
+                title = store.Area;
+                break;
+            case "brand":
+                title = Store.ToBrandName(store.Brand);
+                break;
+            case "spot":
+                title = Store.ToSpotName(store.Spot);
+                break;
+            case "custom":
+                // 自選：顯示各店店名
+                title = store.Name;
+                break;
+            default:
+                title = store.Name;
+                break;
+        }
+        return title;
+    }
+
+    public List<ValueData> CreateCollections(ICollection<Store> stores)
+    {
+        var list = new List<ValueData>();
+
+        foreach (var store in stores)
+        {
+            string title = GetTitle(store);
+            if (!list.Any(x => x.Title == title))
+            {
+                list.Add(new ValueData { Title = title });
+            }
+        }
+
+        return list;
+    }
+}
+
+public class TallyResultJSO
+{
+    public class GroupData
+    {
+        public string title { get; set; } = string.Empty;
+        public int value { get; set; }
+    }
+
+    public class IntervalData
+    {
+        public string name { get; set; } = string.Empty;
+        public List<GroupData> values { get; set; } = new List<GroupData>();
+    }
+
+    public bool success { get; set; }
+    public string message { get; set; } = string.Empty;
+
+    public string targetRev { get; set; } = string.Empty;
+    public string realRev { get; set; } = string.Empty;
+    public string revRate { get; set; } = string.Empty;
+    public bool revAchieve { get; set; }
+
+    public string customers { get; set; } = string.Empty;
+    public string consumers { get; set; } = string.Empty;
+    public string consumerRate { get; set; } = string.Empty;
+
+    public int avgUnitPrice { get; set; }
+    public List<IntervalData> unitPrices { get; set; } = new List<IntervalData>();
+
+    public List<IntervalData> products { get; set; } = new List<IntervalData>();
+
+    public int[] sexCounts { get; set; } = new int[2];
+    public int[] ageCounts { get; set; } = new int[6];
+
+    public string totalSCE { get; set; } = string.Empty;
+    public string avgSCE { get; set; } = string.Empty;
+    public string useRateSCE { get; set; } = string.Empty;
+    public string totalDCE { get; set; } = string.Empty;
+    public string avgDCE { get; set; } = string.Empty;
+    public string useRateDCE { get; set; } = string.Empty;
+
+    public void SetRevenue(int target, int real)
+    {
+        targetRev = target.ToString("N0");
+        realRev = real.ToString("N0");
+        double rate = ((double)real / target) * 100;
+        revRate = rate.ToString("N2") + "%";
+        revAchieve = rate >= 100.0;
+    }
+
+    public void SetConsumers(int numOfCustomers, int numOfConsumers)
+    {
+        customers = numOfCustomers.ToString("N0");
+        consumers = numOfConsumers.ToString("N0");
+        if (numOfCustomers > 0)
+        {
+            consumerRate = (((double)numOfConsumers / numOfCustomers) * 100).ToString("N2") + "%";
+        }
+        else
+        {
+            consumerRate = "0.00%";
+        }
+    }
+
+    public void SetUnitPrices(List<KeyValuePair<string, List<ValueData>>> buffer)
+    {
+        double price = 0;
+        double times = 0;
+
+        foreach (var pair in buffer)
+        {
+            var iv = new IntervalData();
+            iv.name = pair.Key;
+            foreach (var v in pair.Value)
+            {
+                var g = new GroupData();
+                g.title = v.Title;
+                // 防止 Value3 太大或無限大造成溢位
+                if (double.IsInfinity(v.Value3) || double.IsNaN(v.Value3) || v.Value3 > int.MaxValue || v.Value3 < int.MinValue)
+                {
+                    g.value = 0;
+                }
+                else
+                {
+                    g.value = Convert.ToInt32(v.Value3);
+                }
+                iv.values.Add(g);
+
+                price += v.Value1;
+                times += v.Value2;
+            }
+
+            unitPrices.Add(iv);
+        }
+
+        avgUnitPrice = times > 0 ? Convert.ToInt32(price / times) : 0;
+    }
+
+    public void SetProducts(SortedList<string, List<KeyValuePair<string, int>>> buffer)
+    {
+        foreach (var pair in buffer)
+        {
+            var iv = new IntervalData();
+            iv.name = pair.Key;
+
+            foreach (var p in pair.Value)
+            {
+                var g = new GroupData();
+                g.title = p.Key;
+                g.value = p.Value;
+                iv.values.Add(g);
+            }
+
+            products.Add(iv);
+        }
+    }
+
+    public void SetMemberCounts(Tuple<int[], int[]> buffer)
+    {
+        sexCounts = buffer.Item1;
+        ageCounts = buffer.Item2;
+    }
+
+    public void SetCarbonEmissions(Tuple<double[], double[]> buffer)
+    {
+        totalSCE = buffer.Item1[0].ToString("N0");
+        avgSCE = buffer.Item1[1].ToString("N0");
+        useRateSCE = (buffer.Item1[2] * 100).ToString("N2") + "%";
+        totalDCE = buffer.Item2[0].ToString("N0");
+        avgDCE = buffer.Item2[1].ToString("N0");
+        useRateDCE = (buffer.Item2[2] * 100).ToString("N2") + "%";
     }
 }

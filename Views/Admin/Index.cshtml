@@ -1,0 +1,263 @@
+@{
+    ViewData["Title"] = "總覽";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div id="adminApp">
+    <div class="row">
+        <!-- 統計卡片 -->
+        <div class="col-md-3 mb-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 3rem; color: #667eea; margin-bottom: 1rem;">
+                    <i class="bi bi-shop"></i>
+                </div>
+                <h4 style="color: #64748b; font-size: 0.9rem; margin-bottom: 0.5rem;">店舖總數</h4>
+                <h2 style="color: #2d3748; font-weight: 700; margin: 0;">{{ statistics.totalStores }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 3rem; color: #43e97b; margin-bottom: 1rem;">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <h4 style="color: #64748b; font-size: 0.9rem; margin-bottom: 0.5rem;">今日交易</h4>
+                <h2 style="color: #2d3748; font-weight: 700; margin: 0;">{{ formatNumber(statistics.todayTransactions) }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 3rem; color: #f093fb; margin-bottom: 1rem;">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <h4 style="color: #64748b; font-size: 0.9rem; margin-bottom: 0.5rem;">會員總數</h4>
+                <h2 style="color: #2d3748; font-weight: 700; margin: 0;">{{ formatNumber(statistics.totalMembers) }}</h2>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="admin-card text-center">
+                <div style="font-size: 3rem; color: #4facfe; margin-bottom: 1rem;">
+                    <i class="bi bi-cash-coin"></i>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <select class="form-select form-select-sm d-inline-block" style="width: auto; font-size: 0.85rem;" v-model="revenueMonth" @@change="loadStatistics">
+                        <option value="current">本月營收</option>
+                        <option value="last">上月營收</option>
+                    </select>
+                </div>
+                <h2 style="color: #2d3748; font-weight: 700; margin: 0;">{{ formatCurrency(statistics.revenue) }}</h2>
+            </div>
+        </div>
+    </div>
+
+<!-- 快速操作 -->
+<div class="admin-card">
+    <div class="card-header-custom">
+        <h3><i class="bi bi-lightning-fill"></i> 快速操作</h3>
+    </div>
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <a href="/Admin/Stores" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+                <i class="bi bi-shop" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                <span style="font-size: 1.1rem;">管理店舖</span>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="/Admin/Transactions" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+                <i class="bi bi-receipt" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                <span style="font-size: 1.1rem;">查看交易</span>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="/Admin/Members" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+                <i class="bi bi-people-fill" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                <span style="font-size: 1.1rem;">會員資料</span>
+            </a>
+        </div>
+        <div class="col-md-3 mb-3">
+            <a href="/Admin/Revenues" class="btn btn-primary-custom w-100" style="padding: 1.5rem;">
+                <i class="bi bi-graph-up-arrow" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                <span style="font-size: 1.1rem;">營收目標</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 最近活動 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="admin-card">
+            <div class="card-header-custom">
+                <h3><i class="bi bi-clock-history"></i> 最近交易</h3>
+                <a href="/Admin/Transactions" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>時間</th>
+                            <th>店舖</th>
+                            <th>金額</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="transactions.length > 0">
+                        <tr v-for="trans in transactions" :key="trans.id">
+                            <td>{{ formatDateTime(trans.time) }}</td>
+                            <td>{{ trans.storeName }}</td>
+                            <td class="text-success fw-bold">${{ formatNumber(trans.amount) }}</td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">載入中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="admin-card" id="memberOverview">
+            <div class="card-header-custom">
+                <h3><i class="bi bi-people-fill"></i> 會員總覽</h3>
+                <a href="/Admin/Members" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>電話</th>
+                            <th>性別</th>
+                            <th>年齡</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="members.length > 0">
+                        <tr v-for="member in members" :key="member.phoneNumber">
+                            <td>{{ member.name }}</td>
+                            <td>{{ member.phoneNumber }}</td>
+                            <td>{{ member.sex }}</td>
+                            <td>{{ member.age }}</td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">載入中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-center mt-3" v-if="totalMembers > 0">
+                <small class="text-muted">顯示 {{ members.length }} / {{ totalMembers }} 筆會員資料</small>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    <script src="~/js/vue.global.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    statistics: {
+                        totalStores: 0,
+                        todayTransactions: 0,
+                        totalMembers: 0,
+                        revenue: 0,
+                        revenueLabel: '本月營收'
+                    },
+                    revenueMonth: 'current',
+                    members: [],
+                    totalMembers: 0,
+                    transactions: []
+                };
+            },
+            mounted() {
+                this.loadStatistics();
+                this.loadMembers();
+                this.loadTransactions();
+            },
+            methods: {
+                async loadStatistics() {
+                    try {
+                        const response = await fetch(`/Admin/GetStatistics?revenueMonth=${this.revenueMonth}`);
+                        const result = await response.json();
+
+                        if (result.success) {
+                            this.statistics = {
+                                totalStores: result.totalStores,
+                                todayTransactions: result.todayTransactions,
+                                totalMembers: result.totalMembers,
+                                revenue: result.revenue,
+                                revenueLabel: result.revenueLabel
+                            };
+                        }
+                    } catch (error) {
+                        console.error('載入統計數據失敗:', error);
+                    }
+                },
+                async loadMembers() {
+                    try {
+                        const response = await fetch('/Admin/GetMembersOverview?page=1&pageSize=10');
+                        const result = await response.json();
+
+                        if (result.success) {
+                            this.members = result.members;
+                            this.totalMembers = result.total;
+                        }
+                    } catch (error) {
+                        console.error('載入會員資料失敗:', error);
+                    }
+                },
+                async loadTransactions() {
+                    try {
+                        const response = await fetch('/Admin/GetRecentTransactions?count=10');
+                        const result = await response.json();
+
+                        if (result.success) {
+                            this.transactions = result.transactions;
+                        }
+                    } catch (error) {
+                        console.error('載入交易資料失敗:', error);
+                    }
+                },
+                formatNumber(value) {
+                    if (!value && value !== 0) return '0';
+                    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                },
+                formatCurrency(value) {
+                    if (!value && value !== 0) return '$0';
+
+                    // 如果超過百萬，顯示為 M (Million)
+                    if (value >= 1000000) {
+                        return '$' + (value / 1000000).toFixed(1) + 'M';
+                    }
+                    // 如果超過千，顯示為 K (Thousand)
+                    else if (value >= 1000) {
+                        return '$' + (value / 1000).toFixed(1) + 'K';
+                    }
+
+                    return '$' + value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                },
+                formatDateTime(dateString) {
+                    if (!dateString) return '';
+
+                    const date = new Date(dateString);
+                    const month = date.getMonth() + 1;
+                    const day = date.getDate();
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+                    return `${month}-${day} ${hours}:${minutes}`;
+                }
+            }
+        }).mount('#adminApp');
+    </script>
+}

@@ -1,8 +1,15 @@
+using Microsoft.EntityFrameworkCore;
+using Dashboard.Models;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // 添加服務到容器
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpClient(); // 用於 API 調用
+
+// 註冊 DbContext
+builder.Services.AddDbContext<ZuchiDB>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ZuchiDB")));
 
 var app = builder.Build();
 

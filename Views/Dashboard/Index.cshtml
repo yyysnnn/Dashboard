@@ -416,13 +416,13 @@
                         <option value="week">週</option>
                         <option value="month">月</option>
                     </select>
-                    <input type="date" v-model="filters.beginDate" @@change="updateDashboard" />
+                    <input type="date" v-model="filters.beginDate" @@change="onBeginDateChange" />
                     <input type="date" v-model="filters.endDate" @@change="updateDashboard" />
                     <select v-model="filters.group" @@change="updateDashboard">
                         <option value="area">區域</option>
                         <option value="brand">品牌</option>
                         <option value="spot">店型</option>
-                        <option value="custom">自選</option>
+                        <option value="custom">各店</option>
                     </select>
                 </div>
             </div>
@@ -588,7 +588,7 @@
                         interval: 'day',
                         beginDate: '@ViewBag.BeginDate',
                         endDate: '@ViewBag.EndDate',
-                        group: 'area'
+                        group: 'custom'
                     },
                     data: {
                         targetRevenue: 0,
@@ -669,6 +669,22 @@
                         Object.values(this.charts).forEach(chart => chart.resize());
                     });
                 },
+                onBeginDateChange() {
+                    // 當開始日期改變時，自動將結束日期設為開始日期 +3 天
+                    if (this.filters.beginDate) {
+                        const beginDate = new Date(this.filters.beginDate);
+                        const endDate = new Date(beginDate);
+                        endDate.setDate(endDate.getDate() + 3);
+
+                        // 格式化為 YYYY-MM-DD
+                        const year = endDate.getFullYear();
+                        const month = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(endDate.getDate()).padStart(2, '0');
+                        this.filters.endDate = `${year}-${month}-${day}`;
+                    }
+
+                    this.updateDashboard();
+                },
                 async updateDashboard() {
                     try {
                         const params = new URLSearchParams({
@@ -683,21 +699,29 @@
                         console.log('Response status:', response.status);
                         const result = await response.json();
                         console.log('API Response:', result);
+                        console.log('API Response JSON:', JSON.stringify(result, null, 2));
 
                         if (result.success) {
-                            this.data.targetRevenue = result.targetRev || 0;
-                            this.data.realRevenue = result.realRev || 0;
+                            // 處理數字格式的字串（移除逗號）
+                            const parseNumber = (str) => {
+                                if (typeof str === 'number') return str;
+                                if (!str) return 0;
+                                return parseInt(str.replace(/,/g, '')) || 0;
+                            };
+
+                            this.data.targetRevenue = parseNumber(result.targetRev);
+                            this.data.realRevenue = parseNumber(result.realRev);
                             this.data.revenueRate = result.revRate || '0%';
                             this.data.revenueAchieved = result.revAchieve || false;
-                            this.data.customers = result.customers || 0;
-                            this.data.consumers = result.consumers || 0;
+                            this.data.customers = parseNumber(result.customers);
+                            this.data.consumers = parseNumber(result.consumers);
                             this.data.consumerRate = result.consumerRate || '0%';
                             this.data.avgUnitPrice = result.avgUnitPrice || 0;
                             this.data.unitPrices = result.unitPrices || [];
-                            this.data.totalSCE = result.totalSCE || 0;
-                            this.data.totalDCE = result.totalDCE || 0;
-                            this.data.avgSCE = result.avgSCE || 0;
-                            this.data.avgDCE = result.avgDCE || 0;
+                            this.data.totalSCE = parseNumber(result.totalSCE);
+                            this.data.totalDCE = parseNumber(result.totalDCE);
+                            this.data.avgSCE = parseNumber(result.avgSCE);
+                            this.data.avgDCE = parseNumber(result.avgDCE);
                             this.data.useRateSCE = result.useRateSCE || '0%';
                             this.data.useRateDCE = result.useRateDCE || '0%';
                             this.data.products = result.products || [];
@@ -779,10 +803,38 @@
                     this.charts.unitPrice.setOption(option);
                 },
                 updateProductChart() {
-                    if (!this.data.products.length) return;
+                    if (!this.data.products || !this.data.products.length) {
+                        console.log('No products data to display');
+                        return;
+                    }
 
                     const product = this.data.products[this.selectedProductGroup];
-                    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
+                    if (!product || !product.values || !product.values.length) {
+                        console.log('Selected product group has no data');
+                        return;
+                    }
+
+                    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#ff6b6b', '#48dbfb', '#a29bfe', '#fd79a8', '#fdcb6e', '#6c5ce7', '#00b894'];
+
+                    // 只顯示前 15 名商品，其餘合併為「其他」
+                    const topN = 15;
+                    let displayData = [];
+
+                    if (product.values.length > topN) {
+                        // 取前 15 名
+                        displayData = product.values.slice(0, topN);
+
+                        // 計算其他商品的總和
+                        const othersSum = product.values.slice(topN).reduce((sum, item) => sum + item.value, 0);
+                        if (othersSum > 0) {
+                            displayData.push({
+                                title: '其他',
+                                value: othersSum
+                            });
+                        }
+                    } else {
+                        displayData = product.values;
+                    }
 
                     const option = {
                         tooltip: {
@@ -793,8 +845,11 @@
                             orient: 'vertical',
                             right: 10,
                             top: 'center',
+                            height: 300,
+                            type: 'scroll',  // 啟用滾動
+                            pageButtonPosition: 'end',
                             formatter: (name) => {
-                                const item = product.values.find(v => v.title === name);
+                                const item = displayData.find(v => v.title === name);
                                 return item ? `${name}: ${item.value}` : name;
                             }
                         },
@@ -802,6 +857,7 @@
                             name: product.name,
                             type: 'pie',
                             radius: ['40%', '70%'],
+                            center: ['40%', '50%'],  // 圖表往左移一點，給圖例更多空間
                             avoidLabelOverlap: false,
                             itemStyle: {
                                 borderRadius: 10,
@@ -811,23 +867,23 @@
                             label: {
                                 show: true,
                                 formatter: '{d}%',
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: 'bold'
                             },
                             emphasis: {
                                 label: {
                                     show: true,
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: 'bold',
                                     formatter: '{b}\n{c} ({d}%)'
                                 }
                             },
                             labelLine: {
                                 show: true,
-                                length: 10,
-                                length2: 10
+                                length: 8,
+                                length2: 8
                             },
-                            data: product.values.map((v, index) => ({
+                            data: displayData.map((v, index) => ({
                                 value: v.value,
                                 name: v.title,
                                 itemStyle: { color: colors[index % colors.length] }
