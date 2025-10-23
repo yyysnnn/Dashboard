@@ -226,28 +226,28 @@
             <p>管理系統</p>
         </div>
         <nav class="sidebar-menu">
-            <a href="@Url.Action("Index", "Admin")" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+            <a asp-controller="Admin" asp-action="Index" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
                 <i class="bi bi-house-door-fill"></i>
                 <span>總覽</span>
             </a>
-            <a href="@Url.Action("Stores", "Admin")" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Stores" ? "active" : "")">
+            <a asp-controller="Admin" asp-action="Stores" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Stores" ? "active" : "")">
                 <i class="bi bi-shop"></i>
                 <span>店舖管理</span>
             </a>
-            <a href="@Url.Action("Transactions", "Admin")" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Transactions" ? "active" : "")">
+            <a asp-controller="Admin" asp-action="Transactions" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Transactions" ? "active" : "")">
                 <i class="bi bi-receipt"></i>
                 <span>交易記錄</span>
             </a>
-            <a href="@Url.Action("Members", "Admin")" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Members" ? "active" : "")">
+            <a asp-controller="Admin" asp-action="Members" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Members" ? "active" : "")">
                 <i class="bi bi-people-fill"></i>
                 <span>會員管理</span>
             </a>
-            <a href="@Url.Action("Revenues", "Admin")" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Revenues" ? "active" : "")">
+            <a asp-controller="Admin" asp-action="Revenues" class="menu-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Revenues" ? "active" : "")">
                 <i class="bi bi-graph-up-arrow"></i>
                 <span>營收目標</span>
             </a>
         </nav>
-        <a href="@Url.Action("Index", "Dashboard")" class="dashboard-link">
+        <a asp-controller="Dashboard" asp-action="Index" class="dashboard-link">
             <i class="bi bi-speedometer2"></i> 前往戰情室
         </a>
     </div>
