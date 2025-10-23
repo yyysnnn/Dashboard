@@ -264,105 +264,6 @@ public class CashierController : Controller
     }
 
     [HttpGet]
-    public IActionResult RecentActivity(int hours = 24)
-    {
-        try
-        {
-            var cutoffTime = DateTime.Now.AddHours(-hours);
-
-            var recentTransactions = _db.Transactions
-                .Where(t => t.Time >= cutoffTime)
-                .OrderByDescending(t => t.Time)
-                .Take(50)
-                .Select(t => new
-                {
-                    id = t.ID,
-                    time = t.Time,
-                    storeID = t.StoreID,
-                    amount = t.Amount,
-                    customers = t.NumOfCustomers,
-                    consumers = t.NumOfConsumers
-                })
-                .ToList();
-
-            // 檢查 JSON 檔案
-            string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
-            var recentFiles = new List<object>();
-
-            if (Directory.Exists(cashierDir))
-            {
-                var files = Directory.GetFiles(cashierDir, "*.json")
-                    .Select(f => new FileInfo(f))
-                    .Where(fi => fi.LastWriteTime >= cutoffTime)
-                    .OrderByDescending(fi => fi.LastWriteTime)
-                    .Take(20)
-                    .Select(fi => new
-                    {
-                        fileName = fi.Name,
-                        size = fi.Length,
-                        lastWriteTime = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
-                    })
-                    .ToList();
-
-                recentFiles = files.Cast<object>().ToList();
-            }
-
-            return Json(new
-            {
-                success = true,
-                timeRange = $"最近 {hours} 小時",
-                transactionCount = recentTransactions.Count,
-                jsonFileCount = recentFiles.Count,
-                transactions = recentTransactions,
-                jsonFiles = recentFiles
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "查詢最近活動失敗");
-            return Json(new { success = false, error = ex.Message });
-        }
-    }
-
-    [HttpGet]
-    public IActionResult ListJsonFiles()
-    {
-        try
-        {
-            string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
-
-            if (!Directory.Exists(cashierDir))
-            {
-                return Json(new { success = false, message = "目錄不存在", path = cashierDir });
-            }
-
-            var files = Directory.GetFiles(cashierDir, "*.json")
-                .OrderByDescending(f => System.IO.File.GetLastWriteTime(f))
-                .Take(10)
-                .Select(f => new
-                {
-                    fileName = Path.GetFileName(f),
-                    size = new FileInfo(f).Length,
-                    lastWriteTime = System.IO.File.GetLastWriteTime(f).ToString("yyyy-MM-dd HH:mm:ss")
-                })
-                .ToList();
-
-            return Json(new
-            {
-                success = true,
-                path = cashierDir,
-                fileCount = files.Count,
-                files = files
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "列出 JSON 檔案失敗");
-            return Json(new { success = false, error = ex.Message });
-        }
-    }
-
-    [HttpGet]
     public IActionResult ViewLogs(int lines = 50)
     {
         try
@@ -422,6 +323,131 @@ public class CashierController : Controller
         {
             _logger.LogError(ex, "讀取 log 失敗");
             return Json(new { success = false, error = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
+
+    [HttpGet]
+    public IActionResult ViewTodayStructure(string? date = null)
+    {
+        try
+        {
+            // 如果沒有指定日期，使用今天
+            string targetDate = date ?? DateTime.Now.ToString("yyyy-MM-dd");
+            string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", targetDate);
+
+            if (!Directory.Exists(cashierDir))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "目錄不存在",
+                    date = targetDate,
+                    path = cashierDir
+                });
+            }
+
+            // 統計各資料夾的檔案
+            var summary = new
+            {
+                successCount = 0,
+                failedCount = 0,
+                exceptionCount = 0,
+                totalCount = 0
+            };
+
+            List<object> successFiles = new List<object>();
+            List<object> failedFiles = new List<object>();
+            List<object> exceptionFiles = new List<object>();
+
+            // Success 資料夾
+            string successDir = Path.Combine(cashierDir, "Success");
+            if (Directory.Exists(successDir))
+            {
+                var files = Directory.GetFiles(successDir, "*.json")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(fi => fi.LastWriteTime)
+                    .Select(fi => new
+                    {
+                        fileName = fi.Name,
+                        size = fi.Length,
+                        lastWriteTime = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                    })
+                    .ToList();
+
+                successFiles = files.Cast<object>().ToList();
+                summary = new
+                {
+                    successCount = files.Count,
+                    failedCount = summary.failedCount,
+                    exceptionCount = summary.exceptionCount,
+                    totalCount = summary.totalCount + files.Count
+                };
+            }
+
+            // Failed 資料夾
+            string failedDir = Path.Combine(cashierDir, "Failed");
+            if (Directory.Exists(failedDir))
+            {
+                var files = Directory.GetFiles(failedDir, "*.json")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(fi => fi.LastWriteTime)
+                    .Select(fi => new
+                    {
+                        fileName = fi.Name,
+                        size = fi.Length,
+                        lastWriteTime = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                    })
+                    .ToList();
+
+                failedFiles = files.Cast<object>().ToList();
+                summary = new
+                {
+                    successCount = summary.successCount,
+                    failedCount = files.Count,
+                    exceptionCount = summary.exceptionCount,
+                    totalCount = summary.totalCount + files.Count
+                };
+            }
+
+            // Exception 資料夾
+            string exceptionDir = Path.Combine(cashierDir, "Exception");
+            if (Directory.Exists(exceptionDir))
+            {
+                var files = Directory.GetFiles(exceptionDir, "*.json")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(fi => fi.LastWriteTime)
+                    .Select(fi => new
+                    {
+                        fileName = fi.Name,
+                        size = fi.Length,
+                        lastWriteTime = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                    })
+                    .ToList();
+
+                exceptionFiles = files.Cast<object>().ToList();
+                summary = new
+                {
+                    successCount = summary.successCount,
+                    failedCount = summary.failedCount,
+                    exceptionCount = files.Count,
+                    totalCount = summary.totalCount + files.Count
+                };
+            }
+
+            return Json(new
+            {
+                success = true,
+                date = targetDate,
+                summary = summary,
+                successFiles = successFiles,
+                failedFiles = failedFiles,
+                exceptionFiles = exceptionFiles
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "查詢今日 Cashier 資料結構失敗");
+            return Json(new { success = false, error = ex.Message });
         }
     }
 }
