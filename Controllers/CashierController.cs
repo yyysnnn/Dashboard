@@ -235,6 +235,68 @@ public class CashierController : Controller
             return Json(new { success = false, error = ex.Message });
         }
     }
+
+    [HttpGet]
+    public IActionResult ViewLogs(int lines = 50)
+    {
+        try
+        {
+            // 查找 logs 目錄
+            string[] possibleLogPaths = new[]
+            {
+                Path.Combine(_env.ContentRootPath, "logs"),
+                Path.Combine(_env.ContentRootPath, "Logs"),
+                Path.Combine(_env.ContentRootPath, "App_Data", "logs")
+            };
+
+            string? logsDir = possibleLogPaths.FirstOrDefault(p => Directory.Exists(p));
+
+            if (logsDir == null)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "找不到 logs 目錄",
+                    searchedPaths = possibleLogPaths
+                });
+            }
+
+            // 找最新的 log 檔案
+            var logFiles = Directory.GetFiles(logsDir, "*.txt")
+                .Concat(Directory.GetFiles(logsDir, "*.log"))
+                .OrderByDescending(f => System.IO.File.GetLastWriteTime(f))
+                .ToList();
+
+            if (!logFiles.Any())
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "找不到 log 檔案",
+                    logsDir = logsDir
+                });
+            }
+
+            var latestLog = logFiles.First();
+            var allLines = System.IO.File.ReadAllLines(latestLog);
+            var recentLines = allLines.Skip(Math.Max(0, allLines.Length - lines)).ToArray();
+
+            return Json(new
+            {
+                success = true,
+                logFile = Path.GetFileName(latestLog),
+                logPath = latestLog,
+                totalLines = allLines.Length,
+                displayLines = recentLines.Length,
+                logs = recentLines
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "讀取 log 失敗");
+            return Json(new { success = false, error = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
 }
 
 // JSON 資料模型
