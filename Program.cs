@@ -13,12 +13,6 @@ builder.Services.AddDbContext<ZuchiDB>(options =>
 
 var app = builder.Build();
 
-// 只在生產環境支援子路徑部署 (如 /dashboard)
-if (!app.Environment.IsDevelopment())
-{
-    app.UsePathBase("/dashboard");
-}
-
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
