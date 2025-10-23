@@ -199,6 +199,67 @@ public class CashierController : Controller
     }
 
     [HttpGet]
+    public IActionResult RecentActivity(int hours = 24)
+    {
+        try
+        {
+            var cutoffTime = DateTime.Now.AddHours(-hours);
+
+            var recentTransactions = _db.Transactions
+                .Where(t => t.Time >= cutoffTime)
+                .OrderByDescending(t => t.Time)
+                .Take(50)
+                .Select(t => new
+                {
+                    id = t.ID,
+                    time = t.Time,
+                    storeID = t.StoreID,
+                    amount = t.Amount,
+                    customers = t.NumOfCustomers,
+                    consumers = t.NumOfConsumers
+                })
+                .ToList();
+
+            // 檢查 JSON 檔案
+            string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
+            var recentFiles = new List<object>();
+
+            if (Directory.Exists(cashierDir))
+            {
+                var files = Directory.GetFiles(cashierDir, "*.json")
+                    .Select(f => new FileInfo(f))
+                    .Where(fi => fi.LastWriteTime >= cutoffTime)
+                    .OrderByDescending(fi => fi.LastWriteTime)
+                    .Take(20)
+                    .Select(fi => new
+                    {
+                        fileName = fi.Name,
+                        size = fi.Length,
+                        lastWriteTime = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                    })
+                    .ToList();
+
+                recentFiles = files.Cast<object>().ToList();
+            }
+
+            return Json(new
+            {
+                success = true,
+                timeRange = $"最近 {hours} 小時",
+                transactionCount = recentTransactions.Count,
+                jsonFileCount = recentFiles.Count,
+                transactions = recentTransactions,
+                jsonFiles = recentFiles
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "查詢最近活動失敗");
+            return Json(new { success = false, error = ex.Message });
+        }
+    }
+
+    [HttpGet]
     public IActionResult ListJsonFiles()
     {
         try
@@ -241,12 +302,13 @@ public class CashierController : Controller
     {
         try
         {
-            // 查找 logs 目錄
+            // 查找 logs 目錄（包含 IIS stdout logs）
             string[] possibleLogPaths = new[]
             {
                 Path.Combine(_env.ContentRootPath, "logs"),
                 Path.Combine(_env.ContentRootPath, "Logs"),
-                Path.Combine(_env.ContentRootPath, "App_Data", "logs")
+                Path.Combine(_env.ContentRootPath, "App_Data", "logs"),
+                _env.ContentRootPath  // 直接在根目錄找 stdout log
             };
 
             string? logsDir = possibleLogPaths.FirstOrDefault(p => Directory.Exists(p));
