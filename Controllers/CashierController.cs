@@ -155,12 +155,26 @@ public class CashierController : Controller
                 }
             }
 
-            // 儲存 JSON 檔案（不管成功或失敗都儲存）
+            // 先判斷是否能成功處理，決定儲存到哪個資料夾
+            bool canSaveToDb = false;
+            string? storeName = null;
+
+            if (rec != null && rec.data != null && rec.data.store != null && rec.data.order != null)
+            {
+                storeName = rec.data.store.name;
+                var store = _db.Stores.Where(x => x.Name == storeName).FirstOrDefault();
+                canSaveToDb = (store != null);
+            }
+
+            // 儲存 JSON 檔案（按日期和成功/失敗分類）
             if (!string.IsNullOrEmpty(body))
             {
                 try
                 {
-                    string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
+                    string today = DateTime.Now.ToString("yyyy-MM-dd");
+                    string statusFolder = canSaveToDb ? "Success" : "Failed";
+
+                    string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", today, statusFolder);
 
                     // 確保目錄存在
                     if (!Directory.Exists(cashierDir))
@@ -168,29 +182,29 @@ public class CashierController : Controller
                         Directory.CreateDirectory(cashierDir);
                     }
 
-                    string fileName = rec.data?.order?.time?.Substring(0, 19).Replace(":", "") + ".json";
-                    string filePath = Path.Combine(cashierDir, fileName);
+                    string fileName;
+                    if (rec?.data?.order?.time != null)
+                    {
+                        fileName = rec.data.order.time.Substring(0, 19).Replace(":", "").Replace(" ", "_") + ".json";
+                    }
+                    else
+                    {
+                        fileName = DateTime.Now.ToString("yyyyMMddHHmmss") + ".json";
+                    }
 
+                    string filePath = Path.Combine(cashierDir, fileName);
                     await System.IO.File.WriteAllTextAsync(filePath, body, Encoding.UTF8);
+
+                    _logger.LogInformation($"[Cashier] 📁 檔案已儲存: {today}/{statusFolder}/{fileName}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "儲存 JSON 檔案失敗，使用時間戳記");
-
-                    string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
-                    if (!Directory.Exists(cashierDir))
-                    {
-                        Directory.CreateDirectory(cashierDir);
-                    }
-
-                    string fileName = DateTime.Now.ToString("_yyyyMMddHHmmss") + ".json";
-                    string filePath = Path.Combine(cashierDir, fileName);
-                    await System.IO.File.WriteAllTextAsync(filePath, body, Encoding.UTF8);
+                    _logger.LogWarning(ex, "[Cashier] 儲存 JSON 檔案失敗");
                 }
             }
 
             // 儲存交易資料到資料庫
-            if (rec != null && rec.data != null)
+            if (canSaveToDb && rec != null && rec.data != null)
             {
                 try
                 {
@@ -201,6 +215,10 @@ public class CashierController : Controller
                 {
                     _logger.LogError(ex, $"[Cashier] ❌ 儲存交易失敗 - 店舖: {rec.data.store?.name}");
                 }
+            }
+            else if (rec != null && rec.data != null)
+            {
+                _logger.LogWarning($"[Cashier] ⚠️ 找不到店舖: {storeName} - 資料已儲存到 Failed 資料夾");
             }
             else
             {
@@ -213,19 +231,20 @@ public class CashierController : Controller
         {
             _logger.LogError(ex, $"[Cashier] ❌ 處理請求時發生嚴重錯誤 - {requestInfo}");
 
-            // 即使失敗也嘗試儲存原始 body 到錯誤檔案
+            // 即使發生例外也嘗試儲存原始 body 到錯誤檔案
             try
             {
                 if (!string.IsNullOrEmpty(body))
                 {
-                    string errorDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", "Errors");
+                    string today = DateTime.Now.ToString("yyyy-MM-dd");
+                    string errorDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", today, "Exception");
                     if (!Directory.Exists(errorDir))
                     {
                         Directory.CreateDirectory(errorDir);
                     }
-                    string errorFile = Path.Combine(errorDir, $"error_{DateTime.Now:yyyyMMddHHmmss}.json");
+                    string errorFile = Path.Combine(errorDir, $"exception_{DateTime.Now:yyyyMMddHHmmss}.json");
                     await System.IO.File.WriteAllTextAsync(errorFile, body, Encoding.UTF8);
-                    _logger.LogInformation($"[Cashier] 錯誤資料已儲存到: {errorFile}");
+                    _logger.LogInformation($"[Cashier] 💥 例外錯誤資料已儲存到: {today}/Exception/");
                 }
             }
             catch { }
