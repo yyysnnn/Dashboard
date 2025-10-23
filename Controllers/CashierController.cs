@@ -118,18 +118,25 @@ public class CashierController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Index([FromBody] JsoCashierRecord rec)
+    public async Task<IActionResult> Index()
     {
         try
         {
-            // 啟用 Request Body 重複讀取
+            // 先啟用 Request Body 重複讀取（在 Model Binding 之前）
             Request.EnableBuffering();
 
             // 讀取原始 JSON 資料
-            Request.Body.Position = 0;
             using StreamReader reader = new StreamReader(Request.Body, leaveOpen: true);
             string body = await reader.ReadToEndAsync();
             Request.Body.Position = 0;
+
+            // 手動反序列化
+            JsoCashierRecord? rec = null;
+            if (!string.IsNullOrEmpty(body))
+            {
+                rec = System.Text.Json.JsonSerializer.Deserialize<JsoCashierRecord>(body,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
 
             // 儲存 JSON 檔案
             if (!string.IsNullOrEmpty(body))
@@ -204,13 +211,13 @@ public class CashierController : Controller
             }
 
             var files = Directory.GetFiles(cashierDir, "*.json")
-                .OrderByDescending(f => File.GetLastWriteTime(f))
+                .OrderByDescending(f => System.IO.File.GetLastWriteTime(f))
                 .Take(10)
                 .Select(f => new
                 {
                     fileName = Path.GetFileName(f),
                     size = new FileInfo(f).Length,
-                    lastWriteTime = File.GetLastWriteTime(f).ToString("yyyy-MM-dd HH:mm:ss")
+                    lastWriteTime = System.IO.File.GetLastWriteTime(f).ToString("yyyy-MM-dd HH:mm:ss")
                 })
                 .ToList();
 
