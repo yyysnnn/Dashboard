@@ -46,6 +46,7 @@ public class CashierController : Controller
 
             if (!string.IsNullOrEmpty(item.name))
             {
+                // 處理商品名稱，可能包含 "-" 分隔的類別和商品名
                 string[] parts = item.name.Split('-');
                 if (parts.Length >= 2)
                 {
@@ -54,12 +55,14 @@ public class CashierController : Controller
                 }
                 else
                 {
+                    // 如果沒有 "-" 分隔，就直接使用整個名稱作為商品名
                     ti.ProductClass = "";
-                    ti.Product = item.name;
+                    ti.Product = item.name.Trim();
                 }
             }
 
-            ti.Qty = item.quantity;
+            // 數量：優先使用 quantity，如果是 0 就用 1
+            ti.Qty = item.quantity > 0 ? item.quantity : 1;
 
             items.Add(ti);
         }
@@ -145,8 +148,12 @@ public class CashierController : Controller
             {
                 try
                 {
-                    rec = System.Text.Json.JsonSerializer.Deserialize<JsoCashierRecord>(body,
-                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+                    };
+                    rec = System.Text.Json.JsonSerializer.Deserialize<JsoCashierRecord>(body, options);
                     _logger.LogInformation($"[Cashier] JSON 反序列化成功");
                 }
                 catch (Exception ex)
