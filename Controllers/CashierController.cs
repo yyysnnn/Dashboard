@@ -120,25 +120,42 @@ public class CashierController : Controller
     [HttpPost]
     public async Task<IActionResult> Index()
     {
+        string body = "";
+        string requestInfo = "";
+
         try
         {
+            // 記錄請求資訊
+            requestInfo = $"來源IP: {HttpContext.Connection.RemoteIpAddress}, 時間: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
+            _logger.LogInformation($"[Cashier] 收到 POST 請求 - {requestInfo}");
+
             // 先啟用 Request Body 重複讀取（在 Model Binding 之前）
             Request.EnableBuffering();
 
             // 讀取原始 JSON 資料
             using StreamReader reader = new StreamReader(Request.Body, leaveOpen: true);
-            string body = await reader.ReadToEndAsync();
+            body = await reader.ReadToEndAsync();
             Request.Body.Position = 0;
+
+            _logger.LogInformation($"[Cashier] 收到資料大小: {body.Length} bytes");
 
             // 手動反序列化
             JsoCashierRecord? rec = null;
             if (!string.IsNullOrEmpty(body))
             {
-                rec = System.Text.Json.JsonSerializer.Deserialize<JsoCashierRecord>(body,
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                try
+                {
+                    rec = System.Text.Json.JsonSerializer.Deserialize<JsoCashierRecord>(body,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    _logger.LogInformation($"[Cashier] JSON 反序列化成功");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[Cashier] JSON 反序列化失敗");
+                }
             }
 
-            // 儲存 JSON 檔案
+            // 儲存 JSON 檔案（不管成功或失敗都儲存）
             if (!string.IsNullOrEmpty(body))
             {
                 try
@@ -175,15 +192,44 @@ public class CashierController : Controller
             // 儲存交易資料到資料庫
             if (rec != null && rec.data != null)
             {
-                SaveTransaction(rec.data);
-                _logger.LogInformation($"成功接收並儲存交易資料: {rec.data.store?.name} - {rec.data.order?.time}");
+                try
+                {
+                    SaveTransaction(rec.data);
+                    _logger.LogInformation($"[Cashier] ✅ 成功儲存交易 - 店舖: {rec.data.store?.name}, 訂單時間: {rec.data.order?.time}, 金額: {rec.data.order?.total}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"[Cashier] ❌ 儲存交易失敗 - 店舖: {rec.data.store?.name}");
+                }
+            }
+            else
+            {
+                _logger.LogWarning($"[Cashier] ⚠️ 資料不完整，無法儲存交易 - Body長度: {body.Length}");
             }
 
             return StatusCode(200, "OK");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "處理 Cashier 資料時發生錯誤");
+            _logger.LogError(ex, $"[Cashier] ❌ 處理請求時發生嚴重錯誤 - {requestInfo}");
+
+            // 即使失敗也嘗試儲存原始 body 到錯誤檔案
+            try
+            {
+                if (!string.IsNullOrEmpty(body))
+                {
+                    string errorDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", "Errors");
+                    if (!Directory.Exists(errorDir))
+                    {
+                        Directory.CreateDirectory(errorDir);
+                    }
+                    string errorFile = Path.Combine(errorDir, $"error_{DateTime.Now:yyyyMMddHHmmss}.json");
+                    await System.IO.File.WriteAllTextAsync(errorFile, body, Encoding.UTF8);
+                    _logger.LogInformation($"[Cashier] 錯誤資料已儲存到: {errorFile}");
+                }
+            }
+            catch { }
+
             return StatusCode(500, "Internal Server Error");
         }
     }
