@@ -190,6 +190,44 @@ public class CashierController : Controller
 
         return View(transactions);
     }
+
+    [HttpGet]
+    public IActionResult ListJsonFiles()
+    {
+        try
+        {
+            string cashierDir = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier");
+
+            if (!Directory.Exists(cashierDir))
+            {
+                return Json(new { success = false, message = "目錄不存在", path = cashierDir });
+            }
+
+            var files = Directory.GetFiles(cashierDir, "*.json")
+                .OrderByDescending(f => File.GetLastWriteTime(f))
+                .Take(10)
+                .Select(f => new
+                {
+                    fileName = Path.GetFileName(f),
+                    size = new FileInfo(f).Length,
+                    lastWriteTime = File.GetLastWriteTime(f).ToString("yyyy-MM-dd HH:mm:ss")
+                })
+                .ToList();
+
+            return Json(new
+            {
+                success = true,
+                path = cashierDir,
+                fileCount = files.Count,
+                files = files
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "列出 JSON 檔案失敗");
+            return Json(new { success = false, error = ex.Message });
+        }
+    }
 }
 
 // JSON 資料模型
