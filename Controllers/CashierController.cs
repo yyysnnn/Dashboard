@@ -450,6 +450,62 @@ public class CashierController : Controller
             return Json(new { success = false, error = ex.Message });
         }
     }
+
+    [HttpGet]
+    public IActionResult ViewJsonFile(string date, string folder, string fileName)
+    {
+        try
+        {
+            // 驗證參數
+            if (string.IsNullOrEmpty(date) || string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(fileName))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "缺少必要參數"
+                });
+            }
+
+            // 只允許 Success, Failed, Exception 三個資料夾
+            if (folder != "Success" && folder != "Failed" && folder != "Exception")
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "無效的資料夾名稱"
+                });
+            }
+
+            string filePath = Path.Combine(_env.ContentRootPath, "App_Data", "Cashier", date, folder, fileName);
+
+            if (!System.IO.File.Exists(filePath))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "檔案不存在",
+                    path = filePath
+                });
+            }
+
+            string content = System.IO.File.ReadAllText(filePath);
+            var jsonData = System.Text.Json.JsonSerializer.Deserialize<object>(content);
+
+            return Json(new
+            {
+                success = true,
+                date = date,
+                folder = folder,
+                fileName = fileName,
+                content = jsonData
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "讀取 JSON 檔案失敗");
+            return Json(new { success = false, error = ex.Message });
+        }
+    }
 }
 
 // JSON 資料模型
