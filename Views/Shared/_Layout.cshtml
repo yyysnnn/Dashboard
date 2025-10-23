@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/dashboard/" />
+    <base href="@(env.IsDevelopment() ? "/" : "/dashboard/")" />
     <title>@ViewData["Title"] - Dashboard</title>
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="lib/bootstrap-icons/bootstrap-icons.css" />

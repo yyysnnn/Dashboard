@@ -11,16 +11,13 @@ builder.Services.AddHttpClient(); // 用於 API 調用
 builder.Services.AddDbContext<ZuchiDB>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ZuchiDB")));
 
-// 配置監聽所有網路介面 (允許外部IP訪問)
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.ListenAnyIP(80); // HTTP port
-});
-
 var app = builder.Build();
 
-// 支援子路徑部署 (如 /dashboard)
-app.UsePathBase("/dashboard");
+// 只在生產環境支援子路徑部署 (如 /dashboard)
+if (!app.Environment.IsDevelopment())
+{
+    app.UsePathBase("/dashboard");
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
